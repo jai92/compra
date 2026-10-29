@@ -1,0 +1,47 @@
+name: Compilar APK Android
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Instalar Java JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Instalar dependencias de Capacitor
+        run: |
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: Configurar Capacitor y plataforma Android
+        run: |
+          npx cap init "Nuestra Compra" "com.familia.nuestracompra" --web-dir "."
+          npx cap add android
+          npx cap sync android
+
+      - name: Compilar APK Debug
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Subir APK generado como artefacto descargable
+        uses: actions/upload-artifact@v4
+        with:
+          name: NuestraCompra-Instalable-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
