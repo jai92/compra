@@ -40,11 +40,12 @@ jobs:
           npx cap add android
           npx cap sync android
 
-      - name: Compilar APK Debug
+      - name: Limpiar Caché Corrupta y Compilar APK Debug
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew clean assembleDebug --no-daemon
+          rm -rf ~/.gradle/caches/
+          ./gradlew clean assembleDebug --no-daemon --refresh-dependencies
 
       - name: Subir APK generado como artefacto descargable
         uses: actions/upload-artifact@v4
