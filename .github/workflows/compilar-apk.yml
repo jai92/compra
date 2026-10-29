@@ -23,6 +23,12 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
+      - name: Preparar carpeta web para Capacitor
+        run: |
+          mkdir -p www
+          cp index.html manifest.json sw.js www/ || true
+          cp -r icons www/ || true
+
       - name: Instalar dependencias de Capacitor
         run: |
           npm init -y
@@ -30,7 +36,7 @@ jobs:
 
       - name: Configurar Capacitor y plataforma Android
         run: |
-          npx cap init "Nuestra Compra" "com.familia.nuestracompra" --web-dir "."
+          npx cap init "Nuestra Compra" "com.familia.nuestracompra" --web-dir "www"
           npx cap add android
           npx cap sync android
 
