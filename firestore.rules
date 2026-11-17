@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Solo la app (con acceso anónimo activado) puede leer y escribir,
+    // y solo quien conozca el código de 8 caracteres de una lista llega a ella.
+    match /listas/{codigo} {
+      allow get, create, update: if request.auth != null;
+      allow list, delete: if false;
+
+      // Productos de la lista de la compra
+      match /items/{itemId} {
+        allow read: if request.auth != null;
+        allow create, update: if request.auth != null
+          && request.resource.data.size() < 25
+          && (!('name' in request.resource.data) || (request.resource.data.name is string && request.resource.data.name.size() <= 80));
+        allow delete: if request.auth != null;
+      }
+
+      // Stock de casa (con mínimos y máximos)
+      match /stock/{productId} {
+        allow read: if request.auth != null;
+        allow create, update: if request.auth != null
+          && request.resource.data.size() < 20
+          && request.resource.data.name is string && request.resource.data.name.size() <= 80
+          && request.resource.data.qty is number;
+        allow delete: if request.auth != null;
+      }
+    }
+  }
+}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Nuestra Compra - Compartida</title>
+  <title>Nuestra Compra - Lista y Stock</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#10b981">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -11,41 +11,40 @@
   <meta name="apple-mobile-web-app-title" content="Nuestra Compra">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
 
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Claves de Firebase (edita firebase-config.js) -->
+  <script src="firebase-config.js"></script>
+
+  <!-- Librerías: se usan las copias locales que crea GitHub al compilar (funcionan sin internet).
+       Si no existen (por ejemplo, abriendo el archivo en el ordenador), se cargan de internet. -->
+  <script src="vendor/ok.js"></script>
   <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              50: '#ecfdf5',
-              100: '#d1fae5',
-              500: '#10b981',
-              600: '#059669',
-              700: '#047857'
-            }
-          }
-        }
+    (function () {
+      var local = window.__VENDOR_OK === true;
+      var tags = [];
+      if (local) {
+        tags.push('<link rel="stylesheet" href="vendor/tailwind.css">');
+        tags.push('<link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">');
+        tags.push('<script src="vendor/firebase-app-compat.js"><\/script>');
+        tags.push('<script src="vendor/firebase-auth-compat.js"><\/script>');
+        tags.push('<script src="vendor/firebase-firestore-compat.js"><\/script>');
+        tags.push('<script src="vendor/confetti.browser.js"><\/script>');
+      } else {
+        tags.push('<script src="https://cdn.tailwindcss.com"><\/script>');
+        tags.push('<script>if (window.tailwind) tailwind.config = { theme: { extend: { colors: { brand: { 50: "#ecfdf5", 100: "#d1fae5", 500: "#10b981", 600: "#059669", 700: "#047857" } }, boxShadow: { xs: "0 1px 2px 0 rgb(0 0 0 / 0.05)" }, backdropBlur: { xs: "2px" } } } };<\/script>');
+        tags.push('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">');
+        tags.push('<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"><\/script>');
+        tags.push('<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"><\/script>');
+        tags.push('<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"><\/script>');
+        tags.push('<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"><\/script>');
       }
-    }
+      document.write(tags.join('\n'));
+    })();
   </script>
 
-  <!-- FontAwesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-
-  <!-- Canvas Confetti -->
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-
   <style>
-    @supports (-webkit-touch-callout: none) {
-      .pb-safe { padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); }
-      .pt-safe { padding-top: max(0.75rem, env(safe-area-inset-top)); }
-    }
+    .pb-safe { padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); }
+    .pt-safe { padding-top: max(0.75rem, env(safe-area-inset-top)); }
+    .nav-safe { padding-bottom: max(0.35rem, env(safe-area-inset-bottom)); }
     .custom-scroll::-webkit-scrollbar { display: none; }
     .custom-scroll { -ms-overflow-style: none; scrollbar-width: none; }
     .item-enter { animation: popIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
@@ -53,6 +52,10 @@
       0% { opacity: 0; transform: translateY(8px) scale(0.98); }
       100% { opacity: 1; transform: translateY(0) scale(1); }
     }
+    .tap-flash { animation: tapFlash .35s ease-out; }
+    @keyframes tapFlash { 0% { transform: scale(.96); background: #fef3c7; } 100% { transform: scale(1); } }
+    #toast { transition: opacity .2s, transform .2s; }
+    input[type=number]::-webkit-inner-spin-button { opacity: 1; }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-800 antialiased select-none min-h-screen flex flex-col font-sans">
@@ -60,7 +63,7 @@
   <!-- CABECERA PRINCIPAL -->
   <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs pt-safe">
     <div class="max-w-md mx-auto px-4 py-2.5 flex items-center justify-between gap-2">
-      
+
       <!-- BOTÓN SELECTOR DE LISTAS -->
       <button id="listSelectorBtn" type="button" class="flex items-center gap-2.5 bg-slate-100/90 hover:bg-slate-200/80 active:scale-95 transition-all px-3 py-1.5 rounded-2xl border border-slate-200/70 text-left min-w-0 max-w-[210px]">
         <div id="currentListIcon" class="w-8 h-8 rounded-xl bg-brand-500 text-white flex items-center justify-center text-sm shadow-xs flex-shrink-0">
@@ -77,21 +80,21 @@
 
       <!-- BOTONES DE ACCIÓN SUPERIORES -->
       <div class="flex items-center gap-1.5">
-        <!-- Compartir por WhatsApp o Enlace -->
-        <button id="shareListBtn" title="Compartir lista" class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 active:scale-95 flex items-center justify-center transition-all">
+        <button id="connectBtn" title="Conectar otro móvil" class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 active:scale-95 flex items-center justify-center transition-all">
+          <i class="fa-solid fa-user-plus text-sm"></i>
+        </button>
+        <button id="shareListBtn" title="Enviar lista por WhatsApp" class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 active:scale-95 flex items-center justify-center transition-all">
           <i class="fa-solid fa-share-nodes text-sm"></i>
         </button>
-
-        <!-- Ajustes de Usuario y Lista -->
         <button id="settingsBtn" title="Ajustes" class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 active:scale-95 flex items-center justify-center transition-all relative">
-          <i class="fa-solid fa-sliders text-sm"></i>
-          <span id="syncPulse" class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white"></span>
+          <i class="fa-solid fa-gear text-sm"></i>
+          <span id="syncPulse" class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-slate-300 ring-2 ring-white transition-transform"></span>
         </button>
       </div>
     </div>
 
-    <!-- BARRA DE PROGRESO DE LA COMPRA -->
-    <div class="max-w-md mx-auto px-4 pb-2">
+    <!-- BARRA DE PROGRESO DE LA COMPRA (solo en la pestaña Lista) -->
+    <div id="progressWrap" class="max-w-md mx-auto px-4 pb-2">
       <div class="flex justify-between items-center text-[11px] font-semibold text-slate-500 mb-1">
         <span id="progressText">0 de 0 en el carrito</span>
         <span id="progressPercent" class="text-emerald-600 font-bold">0%</span>
@@ -102,126 +105,198 @@
     </div>
   </header>
 
-  <!-- CONTENIDO PRINCIPAL -->
-  <main class="flex-1 max-w-md w-full mx-auto p-4 flex flex-col gap-4 pb-28">
+  <!-- ===================================================================== -->
+  <!--  PESTAÑA 1: LISTA DE LA COMPRA                                         -->
+  <!-- ===================================================================== -->
+  <main id="viewList" class="flex-1 max-w-md w-full mx-auto p-4 flex flex-col gap-4 pb-32">
 
-    <!-- BOTONES DE ACCESO RÁPIDO (BÁSICOS) -->
+    <!-- AVISO: CONECTAR OTRO MÓVIL -->
+    <button id="connectBanner" type="button" class="hidden w-full text-left bg-emerald-600 text-white rounded-2xl p-3 flex items-center gap-3 shadow-sm active:scale-[0.98] transition-all">
+      <div class="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+        <i class="fa-solid fa-mobile-screen-button"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="font-bold text-sm">Conecta el otro móvil</p>
+        <p id="connectBannerText" class="text-[11px] text-emerald-50">Comparte el código y veréis la misma lista en directo.</p>
+      </div>
+      <span id="dismissBannerBtn" class="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center text-xs flex-shrink-0" title="Ocultar">
+        <i class="fa-solid fa-xmark"></i>
+      </span>
+    </button>
+
+    <!-- BOTONES DE ACCESO RÁPIDO -->
     <section>
       <p class="text-[11px] font-bold tracking-wider text-slate-400 uppercase mb-2">Añadir con 1 toque</p>
-      <div id="quickItemsContainer" class="flex gap-2 overflow-x-auto pb-1 custom-scroll text-xs">
-        <!-- Generado dinámicamente -->
-      </div>
+      <div id="quickItemsContainer" class="flex gap-2 overflow-x-auto pb-1 custom-scroll text-xs"></div>
     </section>
 
     <!-- FORMULARIO DE AÑADIR PRODUCTO -->
     <section class="bg-white p-3 rounded-2xl shadow-xs border border-slate-200/80">
       <form id="addItemForm" class="flex flex-col gap-2">
         <div class="flex gap-2">
-          <input 
-            type="text" 
-            id="itemInput" 
-            placeholder="¿Qué falta comprar? (ej. Leche, Aguacates...)" 
-            class="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 placeholder-slate-400"
-            required
-            autocomplete="off"
-          />
+          <input type="text" id="itemInput" placeholder="¿Qué falta comprar? (ej. Leche, Tomates...)"
+            class="flex-1 min-w-0 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 placeholder-slate-400"
+            required autocomplete="off" maxlength="80" />
           <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-4 py-2.5 rounded-xl font-medium text-sm flex items-center justify-center gap-1.5 shadow-sm transition-all">
             <i class="fa-solid fa-plus text-xs"></i>
             <span>Añadir</span>
           </button>
         </div>
-
-        <!-- Opciones rápidas (Categoría y Cantidad) -->
+        <div id="stockSuggest" class="hidden flex flex-col gap-1"></div>
         <div class="flex items-center gap-2 text-xs">
-          <select id="categorySelect" class="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-600 focus:outline-none focus:border-emerald-500 text-xs">
-            <option value="frescos">🥬 Frutas y Verduras</option>
-            <option value="lacteos">🥛 Lácteos y Huevos</option>
-            <option value="carnes">🥩 Carnes y Pescados</option>
-            <option value="despensa" selected>🥫 Despensa y Pasta</option>
-            <option value="limpieza">🧼 Limpieza e Higiene</option>
-            <option value="bebidas">🥤 Bebidas</option>
-            <option value="congelados">🧊 Congelados</option>
-            <option value="otros">📦 Varios / Otros</option>
-          </select>
-
-          <input 
-            type="text" 
-            id="qtyInput" 
-            placeholder="Cant. (ej: 2 ud, 1kg)" 
-            class="w-28 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 text-xs focus:outline-none focus:border-emerald-500"
-          />
+          <select id="categorySelect" class="cat-select flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-600 focus:outline-none focus:border-emerald-500 text-xs"></select>
+          <input type="text" id="qtyInput" placeholder="Cant. (ej: 2 ud)" maxlength="20"
+            class="w-28 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 text-xs focus:outline-none focus:border-emerald-500" />
         </div>
+        <p class="text-[10px] text-slate-400 -mt-0.5">El grupo se elige solo al escribir (puedes cambiarlo).</p>
       </form>
     </section>
 
-    <!-- LISTA DE LA COMPRA (PENDIENTES) -->
+    <!-- LISTA DE LA COMPRA (PENDIENTES, AGRUPADA POR SECCIONES) -->
     <section>
-      <div class="flex items-center justify-between mb-2">
+      <div class="flex items-center justify-between mb-1">
         <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Por Comprar (<span id="pendingCount">0</span>)</h2>
         <button id="sendWhatsappBtn" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1">
           <i class="fa-brands fa-whatsapp text-sm"></i>
           <span>Enviar lista</span>
         </button>
       </div>
-
-      <div id="pendingList" class="flex flex-col gap-2">
-        <!-- Renderizado dinámico -->
-      </div>
-
+      <div id="pendingList" class="flex flex-col gap-2"></div>
       <div id="emptyPendingState" class="hidden bg-white/70 border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center mt-2">
         <div class="w-12 h-12 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto mb-2 text-lg">
           <i class="fa-solid fa-basket-shopping"></i>
         </div>
         <p class="font-bold text-slate-700 text-sm">¡La lista está vacía!</p>
-        <p class="text-xs text-slate-400 mt-0.5">Añade cosas arriba o pulsa en los botones rápidos.</p>
+        <p class="text-xs text-slate-400 mt-0.5">Añade cosas arriba, pulsa los botones rápidos o define mínimos en la pestaña Mín/Máx.</p>
       </div>
     </section>
 
-    <!-- LISTA DE ARTÍCULOS YA EN EL CARRITO -->
+    <!-- YA EN EL CARRITO -->
     <section id="completedSection" class="mt-2 hidden">
       <div class="flex items-center justify-between mb-2">
         <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Ya en el Carrito (<span id="completedCount">0</span>)</h2>
-        <button id="clearCompletedBtn" class="text-[11px] font-semibold text-rose-500 hover:text-rose-600">
-          Vaciar carrito
-        </button>
+        <button id="clearCompletedBtn" class="text-[11px] font-semibold text-rose-500 hover:text-rose-600">Vaciar carrito</button>
       </div>
-
-      <div id="completedList" class="flex flex-col gap-1.5 opacity-80">
-        <!-- Renderizado dinámico -->
-      </div>
+      <div id="completedList" class="flex flex-col gap-1.5 opacity-80"></div>
     </section>
   </main>
 
+  <!-- ===================================================================== -->
+  <!--  PESTAÑA 2: STOCK EN CASA                                              -->
+  <!-- ===================================================================== -->
+  <main id="viewStock" class="hidden flex-1 max-w-md w-full mx-auto p-4 flex-col gap-3 pb-32">
+    <div class="bg-white p-3 rounded-2xl shadow-xs border border-slate-200/80 flex flex-col gap-2">
+      <div class="relative">
+        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+        <input type="search" id="stockSearch" placeholder="Buscar en casa… (ej. coca)" autocomplete="off"
+          class="w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-emerald-500 select-text">
+      </div>
+      <div class="flex items-center justify-between">
+        <span id="stockSummary" class="text-[11px] text-slate-500 font-medium"></span>
+        <button id="stockLowOnlyBtn" type="button" class="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">Solo bajo mínimo</button>
+      </div>
+    </div>
+    <p class="text-[11px] text-slate-400 text-center -mt-1"><i class="fa-regular fa-hand-pointer"></i> Toca un producto cada vez que gastes uno (−1). Con <strong>+</strong> sumas.</p>
+    <div id="stockContainer" class="flex flex-col gap-2"></div>
+    <div id="stockEmpty" class="hidden bg-white/70 border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center">
+      <div class="text-3xl mb-2">📦</div>
+      <p class="font-bold text-slate-700 text-sm">Aún no controlas ningún producto</p>
+      <p class="text-xs text-slate-400 mt-0.5 mb-3">Añade lo que te gusta tener en casa (lejía, papel higiénico, Coca-Cola…) con su mínimo y máximo.</p>
+      <button type="button" data-goto-tab="minmax" class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">Ir a Mín/Máx</button>
+    </div>
+  </main>
+
+  <!-- ===================================================================== -->
+  <!--  PESTAÑA 3: MÍNIMOS Y MÁXIMOS                                          -->
+  <!-- ===================================================================== -->
+  <main id="viewMinmax" class="hidden flex-1 max-w-md w-full mx-auto p-4 flex-col gap-4 pb-32">
+    <section class="bg-white p-3.5 rounded-2xl shadow-xs border border-slate-200/80">
+      <h2 class="font-bold text-sm text-slate-800 mb-0.5">Añadir producto a controlar</h2>
+      <p class="text-[11px] text-slate-400 mb-2.5">Cuando lo que hay en casa llegue al <strong>mínimo</strong>, se añade solo a la lista de la compra para reponer hasta el <strong>máximo</strong>.</p>
+      <div class="flex gap-1.5 overflow-x-auto pb-2 custom-scroll" id="stockIdeas"></div>
+      <form id="stockForm" class="flex flex-col gap-2">
+        <input type="text" id="sfName" placeholder="Producto (ej. Lejía)" maxlength="60" required autocomplete="off"
+          class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-emerald-500">
+        <select id="sfCat" class="cat-select w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-slate-600 text-xs focus:outline-none focus:border-emerald-500"></select>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="flex flex-col text-[10px] font-bold text-slate-500 uppercase">Se cuenta en
+            <input type="text" id="sfUnit" maxlength="15" placeholder="lata, rollo…" autocomplete="off" class="mt-1 px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm normal-case font-medium focus:outline-none focus:border-emerald-500">
+          </label>
+          <label class="flex flex-col text-[10px] font-bold text-slate-500 uppercase">Se compra en
+            <span class="mt-1 flex items-center gap-1">
+              <input type="text" id="sfPackName" maxlength="15" placeholder="caja" autocomplete="off" class="flex-1 min-w-0 px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm normal-case font-medium focus:outline-none focus:border-emerald-500">
+              <span class="text-[10px] normal-case text-slate-400">de</span>
+              <input type="number" id="sfPackSize" inputmode="numeric" min="1" max="999" value="1" class="w-14 px-1 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-center focus:outline-none focus:border-emerald-500">
+            </span>
+          </label>
+        </div>
+        <p class="text-[10px] text-slate-400 -mt-1">Ej.: Coca-Cola se cuenta en <strong>lata</strong> y se compra en <strong>caja de 24</strong>. Si lo compras suelto, deja 1. Mínimo, máximo y stock van en unidades.</p>
+        <div class="grid grid-cols-3 gap-2">
+          <label class="flex flex-col text-[10px] font-bold text-slate-500 uppercase">Mínimo
+            <input type="number" id="sfMin" inputmode="numeric" min="0" max="999" value="1" required class="mt-1 px-2 py-2 bg-rose-50 border border-rose-200 rounded-xl text-sm font-bold text-center text-slate-800 focus:outline-none focus:border-rose-400">
+          </label>
+          <label class="flex flex-col text-[10px] font-bold text-slate-500 uppercase">Máximo
+            <input type="number" id="sfMax" inputmode="numeric" min="0" max="999" value="4" required class="mt-1 px-2 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-bold text-center text-slate-800 focus:outline-none focus:border-emerald-400">
+          </label>
+          <label class="flex flex-col text-[10px] font-bold text-slate-500 uppercase">Tengo ahora
+            <input type="number" id="sfQty" inputmode="numeric" min="0" max="999" value="0" required class="mt-1 px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-center text-slate-800 focus:outline-none focus:border-emerald-500">
+          </label>
+        </div>
+        <p id="sfError" class="hidden text-[11px] text-rose-600 font-medium"></p>
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white py-2.5 rounded-xl font-semibold text-sm transition-all">Guardar producto</button>
+      </form>
+    </section>
+
+    <section>
+      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Productos controlados (<span id="minmaxCount">0</span>)</h2>
+      <div id="minmaxContainer" class="flex flex-col gap-1.5"></div>
+      <p id="minmaxEmpty" class="hidden text-xs text-slate-400 text-center py-6">Todavía no hay productos. Añade el primero arriba.</p>
+    </section>
+  </main>
+
+  <!-- NAVEGACIÓN INFERIOR -->
+  <nav class="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 nav-safe">
+    <div class="max-w-md mx-auto grid grid-cols-3">
+      <button type="button" data-tab="list" class="tab-btn relative flex flex-col items-center gap-0.5 pt-2 pb-1 text-[11px] font-semibold">
+        <i class="fa-solid fa-cart-shopping text-base"></i><span>Lista</span>
+        <span id="badgeList" class="hidden absolute top-1 left-1/2 ml-2 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-600 text-white text-[10px] leading-[18px] text-center"></span>
+      </button>
+      <button type="button" data-tab="stock" class="tab-btn relative flex flex-col items-center gap-0.5 pt-2 pb-1 text-[11px] font-semibold">
+        <i class="fa-solid fa-box-open text-base"></i><span>Stock</span>
+        <span id="badgeStock" class="hidden absolute top-1 left-1/2 ml-2 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] leading-[18px] text-center"></span>
+      </button>
+      <button type="button" data-tab="minmax" class="tab-btn relative flex flex-col items-center gap-0.5 pt-2 pb-1 text-[11px] font-semibold">
+        <i class="fa-solid fa-sliders text-base"></i><span>Mín/Máx</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- AVISO FLOTANTE (toast) con botón Deshacer -->
+  <div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-20 z-[70] max-w-sm w-[92%] bg-slate-900 text-white text-xs font-medium px-4 py-3 rounded-xl shadow-2xl opacity-0 pointer-events-none translate-y-2 flex items-center justify-between gap-3">
+    <span id="toastMsg" class="flex-1"></span>
+    <button id="toastAction" type="button" class="hidden flex-shrink-0 font-bold text-emerald-300 uppercase text-[11px] tracking-wide"></button>
+  </div>
+
   <!-- MODAL / BOTTOM SHEET: SELECTOR DE LISTAS -->
   <div id="listSheetModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex flex-col justify-end transition-opacity opacity-0 pointer-events-none duration-200">
-    <div id="listSheetContent" class="bg-white rounded-t-3xl max-h-[85vh] flex flex-col max-w-md w-full mx-auto p-5 shadow-2xl transform translate-y-full transition-transform duration-300">
-      
+    <div id="listSheetContent" class="bg-white rounded-t-3xl max-h-[85vh] flex flex-col max-w-md w-full mx-auto p-5 pb-safe shadow-2xl transform translate-y-full transition-transform duration-300">
       <div class="w-12 h-1 bg-slate-300 rounded-full mx-auto mb-4"></div>
-
       <div class="flex justify-between items-center mb-3">
         <div>
           <h3 class="text-base font-bold text-slate-800">Tus Listas</h3>
-          <p class="text-xs text-slate-400">Cambia entre la compra del hogar y tus listas privadas</p>
+          <p class="text-xs text-slate-400">Cada lista tiene su propia compra y su propio stock</p>
         </div>
         <button id="closeListSheetBtn" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 text-xs">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
-
-      <!-- LISTA DE LISTAS DISPONIBLES -->
-      <div id="userListsContainer" class="flex flex-col gap-2 overflow-y-auto max-h-[48vh] py-1 pr-1 custom-scroll">
-        <!-- Renderizado dinámico -->
-      </div>
-
-      <!-- ACCIONES: CREAR O UNIRSE -->
+      <div id="userListsContainer" class="flex flex-col gap-2 overflow-y-auto max-h-[48vh] py-1 pr-1 custom-scroll"></div>
       <div class="pt-3 border-t border-slate-100 mt-2 flex gap-2">
         <button id="openCreateListBtn" class="flex-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white py-2.5 px-3 rounded-xl font-medium text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all">
-          <i class="fa-solid fa-plus"></i>
-          <span>Crear Nueva Lista</span>
+          <i class="fa-solid fa-plus"></i><span>Crear Nueva Lista</span>
         </button>
         <button id="openJoinCodeBtn" class="bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 py-2.5 px-3 rounded-xl font-medium text-xs flex items-center justify-center gap-1.5 transition-all">
-          <i class="fa-solid fa-qrcode"></i>
-          <span>Unirme con código</span>
+          <i class="fa-solid fa-key"></i><span>Unirme con código</span>
         </button>
       </div>
     </div>
@@ -236,53 +311,192 @@
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
-
       <form id="createListForm" class="flex flex-col gap-3">
         <div>
           <label class="text-[11px] font-bold text-slate-500 uppercase">Nombre de la lista</label>
-          <input type="text" id="newListName" placeholder="Ej: Black Friday Tech, Regalos..." class="w-full mt-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-emerald-500" required>
+          <input type="text" id="newListName" maxlength="40" placeholder="Ej: Casa de la playa, Regalos..." class="w-full mt-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-emerald-500" required>
         </div>
-
         <div>
           <label class="text-[11px] font-bold text-slate-500 uppercase">Icono</label>
           <div id="iconPicker" class="grid grid-cols-6 gap-2 mt-1">
             <button type="button" data-icon="🛒" class="icon-opt p-2 rounded-xl text-lg bg-emerald-100 border-2 border-emerald-500 text-center">🛒</button>
-            <button type="button" data-icon="💻" class="icon-opt p-2 rounded-xl text-lg bg-slate-50 border border-slate-200 hover:bg-slate-100 text-center">💻</button>
+            <button type="button" data-icon="🏖️" class="icon-opt p-2 rounded-xl text-lg bg-slate-50 border border-slate-200 hover:bg-slate-100 text-center">🏖️</button>
             <button type="button" data-icon="💊" class="icon-opt p-2 rounded-xl text-lg bg-slate-50 border border-slate-200 hover:bg-slate-100 text-center">💊</button>
             <button type="button" data-icon="🎁" class="icon-opt p-2 rounded-xl text-lg bg-slate-50 border border-slate-200 hover:bg-slate-100 text-center">🎁</button>
             <button type="button" data-icon="🛠️" class="icon-opt p-2 rounded-xl text-lg bg-slate-50 border border-slate-200 hover:bg-slate-100 text-center">🛠️</button>
             <button type="button" data-icon="🏷️" class="icon-opt p-2 rounded-xl text-lg bg-slate-50 border border-slate-200 hover:bg-slate-100 text-center">🏷️</button>
           </div>
         </div>
-
         <div>
           <label class="text-[11px] font-bold text-slate-500 uppercase">Tipo de Lista</label>
           <div class="grid grid-cols-2 gap-2 mt-1">
-            <label class="flex flex-col p-2.5 border-2 border-emerald-500 bg-emerald-50/40 rounded-xl cursor-pointer list-type-radio" id="typeSharedLabel">
+            <label class="flex flex-col p-2.5 border-2 border-emerald-500 bg-emerald-50/40 rounded-xl cursor-pointer" id="typeSharedLabel">
               <input type="radio" name="listType" value="shared" checked class="hidden">
               <span class="font-bold text-xs text-emerald-800 flex items-center gap-1.5"><i class="fa-solid fa-users text-xs"></i> Compartida</span>
-              <span class="text-[10px] text-slate-500 mt-0.5">Sincronizada con tu mujer en tiempo real</span>
+              <span class="text-[10px] text-slate-500 mt-0.5">Se sincroniza con el otro móvil</span>
             </label>
-            <label class="flex flex-col p-2.5 border border-slate-200 bg-slate-50 rounded-xl cursor-pointer list-type-radio" id="typePersonalLabel">
+            <label class="flex flex-col p-2.5 border border-slate-200 bg-slate-50 rounded-xl cursor-pointer" id="typePersonalLabel">
               <input type="radio" name="listType" value="personal" class="hidden">
               <span class="font-bold text-xs text-slate-700 flex items-center gap-1.5"><i class="fa-solid fa-lock text-xs"></i> Solo Mía</span>
-              <span class="text-[10px] text-slate-500 mt-0.5">Privada en tu dispositivo (ej: Black Friday)</span>
+              <span class="text-[10px] text-slate-500 mt-0.5">Privada en este móvil</span>
             </label>
           </div>
         </div>
-
-        <button type="submit" class="mt-2 w-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white py-2.5 rounded-xl font-medium text-sm transition-all shadow-xs">
-          Crear y Abrir Lista
-        </button>
+        <button type="submit" class="mt-2 w-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white py-2.5 rounded-xl font-medium text-sm transition-all shadow-xs">Crear y Abrir Lista</button>
       </form>
     </div>
   </div>
 
-  <!-- MODAL: AJUSTES Y PERFIL -->
-  <div id="settingsModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 transition-opacity opacity-0 pointer-events-none duration-200">
+  <!-- MODAL: EDITAR PRODUCTO DE STOCK -->
+  <div id="stockEditModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 transition-opacity opacity-0 pointer-events-none duration-200">
     <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl transform scale-95 transition-transform duration-200">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="font-bold text-base text-slate-800">Editar producto</h3>
+        <button id="closeStockEditBtn" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 text-xs">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <form id="stockEditForm" class="flex flex-col gap-2">
+        <input type="text" id="seName" maxlength="60" required class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-emerald-500">
+        <select id="seCat" class="cat-select w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-slate-600 text-xs focus:outline-none focus:border-emerald-500"></select>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="flex flex-col text-[10px] font-bold text-slate-500 uppercase">Se cuenta en
+            <input type="text" id="seUnit" maxlength="15" placeholder="lata, rollo…" autocomplete="off" class="mt-1 px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm normal-case font-medium focus:outline-none focus:border-emerald-500">
+          </label>
+          <label class="flex flex-col text-[10px] font-bold text-slate-500 uppercase">Se compra en
+            <span class="mt-1 flex items-center gap-1">
+              <input type="text" id="sePackName" maxlength="15" placeholder="caja" autocomplete="off" class="flex-1 min-w-0 px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm normal-case font-medium focus:outline-none focus:border-emerald-500">
+              <span class="text-[10px] normal-case text-slate-400">de</span>
+              <input type="number" id="sePackSize" inputmode="numeric" min="1" max="999" value="1" class="w-14 px-1 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-center focus:outline-none focus:border-emerald-500">
+            </span>
+          </label>
+        </div>
+        <p class="text-[10px] text-slate-400 -mt-1">Ej.: Coca-Cola se cuenta en <strong>lata</strong> y se compra en <strong>caja de 24</strong>. Si lo compras suelto, deja 1. Mínimo, máximo y stock van en unidades.</p>
+        <div class="grid grid-cols-3 gap-2">
+          <label class="flex flex-col text-[10px] font-bold text-slate-500 uppercase">Mínimo
+            <input type="number" id="seMin" inputmode="numeric" min="0" max="999" required class="mt-1 px-2 py-2 bg-rose-50 border border-rose-200 rounded-xl text-sm font-bold text-center focus:outline-none">
+          </label>
+          <label class="flex flex-col text-[10px] font-bold text-slate-500 uppercase">Máximo
+            <input type="number" id="seMax" inputmode="numeric" min="0" max="999" required class="mt-1 px-2 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-bold text-center focus:outline-none">
+          </label>
+          <label class="flex flex-col text-[10px] font-bold text-slate-500 uppercase">Hay en casa
+            <input type="number" id="seQty" inputmode="numeric" min="0" max="999" required class="mt-1 px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-center focus:outline-none">
+          </label>
+        </div>
+        <p id="seError" class="hidden text-[11px] text-rose-600 font-medium"></p>
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white py-2.5 rounded-xl font-semibold text-sm">Guardar cambios</button>
+        <button id="seDeleteBtn" type="button" class="w-full text-rose-600 bg-rose-50 hover:bg-rose-100 py-2 rounded-xl font-semibold text-xs">Dejar de controlar este producto</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CUÁNTAS HAS COMPRADO -->
+  <div id="buyQtyModal" class="fixed inset-0 z-[55] bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 transition-opacity opacity-0 pointer-events-none duration-200">
+    <div class="bg-white rounded-2xl max-w-xs w-full p-5 shadow-2xl transform scale-95 transition-transform duration-200 text-center">
+      <p id="buyQtyTitle" class="text-xs text-slate-500">¿Cuántas has comprado de</p>
+      <h3 id="buyQtyName" class="font-bold text-base text-slate-800 mb-3"></h3>
+      <div class="flex items-center justify-center gap-3">
+        <button id="buyQtyMinus" type="button" class="w-12 h-12 rounded-xl bg-slate-100 text-slate-700 text-xl font-bold active:scale-95">−</button>
+        <input id="buyQtyInput" type="number" inputmode="numeric" min="0" max="999" class="w-20 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-2xl font-extrabold text-center focus:outline-none focus:border-emerald-500">
+        <button id="buyQtyPlus" type="button" class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 text-xl font-bold active:scale-95">+</button>
+      </div>
+      <div id="buyPackRow" class="hidden mt-3 flex items-center justify-center gap-1.5 text-xs text-slate-600">
+        <span>Cada <span id="buyPackName">caja</span> trae</span>
+        <input id="buyPackSize" type="number" inputmode="numeric" min="1" max="999" class="w-16 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-center focus:outline-none focus:border-emerald-500">
+        <span id="buyUnitName">latas</span>
+      </div>
+      <p id="buyTotal" class="text-[11px] text-slate-500 mt-2">Se sumará al stock de casa.</p>
+      <div class="grid grid-cols-2 gap-2 mt-3">
+        <button id="buyQtyCancel" type="button" class="bg-slate-100 text-slate-600 py-2.5 rounded-xl font-semibold text-sm">Cancelar</button>
+        <button id="buyQtySave" type="button" class="bg-emerald-600 text-white py-2.5 rounded-xl font-semibold text-sm">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: NUEVO GRUPO -->
+  <div id="groupModal" class="fixed inset-0 z-[55] bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 transition-opacity opacity-0 pointer-events-none duration-200">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl transform scale-95 transition-transform duration-200">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="font-bold text-base text-slate-800">Nuevo grupo</h3>
+        <button id="closeGroupBtn" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 text-xs">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <form id="groupForm" class="flex flex-col gap-2">
+        <div class="flex gap-2">
+          <input type="text" id="groupIcon" maxlength="4" value="🏷️" class="w-14 px-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-lg text-center focus:outline-none focus:border-emerald-500">
+          <input type="text" id="groupName" maxlength="30" required placeholder="Ej: Mascotas, Bebé, Droguería…" class="flex-1 min-w-0 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-emerald-500">
+        </div>
+        <div class="flex flex-wrap gap-1.5" id="groupEmojiPicker"></div>
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white py-2.5 rounded-xl font-semibold text-sm">Crear grupo</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CONECTAR OTRO MÓVIL -->
+  <div id="connectModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 transition-opacity opacity-0 pointer-events-none duration-200">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl transform scale-95 transition-transform duration-200 max-h-[90vh] overflow-y-auto custom-scroll">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="font-bold text-base text-slate-800">Conectar otro móvil</h3>
+        <button id="closeConnectBtn" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 text-xs">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl mb-4 text-xs font-semibold">
+        <button id="tabInvite" type="button" class="py-2 rounded-lg bg-white shadow-xs text-slate-800">Invitar</button>
+        <button id="tabJoin" type="button" class="py-2 rounded-lg text-slate-500">Tengo un código</button>
+      </div>
+      <div id="cloudOffNotice" class="hidden bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 text-xs mb-3">
+        <p class="font-bold mb-1"><i class="fa-solid fa-triangle-exclamation"></i> Falta activar la nube</p>
+        <p id="cloudOffNoticeText">Para conectar dos móviles hay que poner las claves de Firebase (gratis, se hace una vez). Mira el README o pégalas en Ajustes.</p>
+        <button id="goToSettingsBtn" type="button" class="mt-2 bg-amber-600 text-white px-3 py-1.5 rounded-lg font-semibold">Ir a Ajustes</button>
+      </div>
+      <div id="panelInvite">
+        <div id="invitePersonalNotice" class="hidden bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600 mb-3">
+          <p>Esta lista es <strong>solo tuya</strong>. Si quieres compartirla, hazla compartida primero.</p>
+          <button id="makeSharedBtn" type="button" class="mt-2 bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold">Hacerla compartida</button>
+        </div>
+        <div id="inviteCodeBox">
+          <p class="text-xs text-slate-500 mb-2">Código de la lista <strong id="inviteListName" class="text-slate-700"></strong>:</p>
+          <div class="bg-emerald-50 border-2 border-dashed border-emerald-300 rounded-2xl py-4 text-center">
+            <span id="inviteCode" class="font-mono font-bold text-2xl tracking-[0.2em] text-emerald-800 select-all">----</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 mt-3">
+            <button id="inviteWhatsappBtn" type="button" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white py-2.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5">
+              <i class="fa-brands fa-whatsapp text-sm"></i> Enviar código
+            </button>
+            <button id="inviteCopyBtn" type="button" class="bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 py-2.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5">
+              <i class="fa-regular fa-copy"></i> Copiar
+            </button>
+          </div>
+          <ol class="text-[11px] text-slate-500 mt-3 space-y-1 list-decimal list-inside">
+            <li>Instala la app en el otro móvil.</li>
+            <li>Allí pulsa <i class="fa-solid fa-user-plus text-emerald-600"></i> y elige <strong>"Tengo un código"</strong>.</li>
+            <li>Escribe el código: compartiréis lista, stock y mínimos.</li>
+          </ol>
+        </div>
+      </div>
+      <div id="panelJoin" class="hidden">
+        <form id="joinForm" class="flex flex-col gap-2">
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Código que te han enviado</label>
+          <input type="text" id="joinCodeInput" placeholder="Ej: K7QP-3XMA" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="20"
+            class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-mono font-bold text-lg tracking-widest uppercase focus:outline-none focus:border-emerald-500">
+          <p id="joinError" class="hidden text-[11px] text-rose-600 font-medium"></p>
+          <button id="joinSubmitBtn" type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white py-2.5 rounded-xl font-semibold text-sm transition-all">Unirme a la lista</button>
+        </form>
+      </div>
+      <div id="membersBox" class="hidden mt-4 pt-3 border-t border-slate-100">
+        <p class="text-[11px] font-bold text-slate-500 uppercase mb-1.5">Móviles en esta lista</p>
+        <div id="membersList" class="flex flex-col gap-1"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: AJUSTES -->
+  <div id="settingsModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 transition-opacity opacity-0 pointer-events-none duration-200">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl transform scale-95 transition-transform duration-200 max-h-[90vh] overflow-y-auto custom-scroll">
       <div class="flex justify-between items-center mb-4">
-        <h3 class="font-bold text-base text-slate-800">Ajustes & Sincronización</h3>
+        <h3 class="font-bold text-base text-slate-800">Ajustes</h3>
         <button id="closeSettingsBtn" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 text-xs">
           <i class="fa-solid fa-xmark"></i>
         </button>
@@ -292,694 +506,2012 @@
         <div>
           <label class="text-[11px] font-bold text-slate-500 uppercase">Tu Nombre / Apodo</label>
           <div class="flex gap-2 mt-1">
-            <input type="text" id="userNameInput" placeholder="Ej: David o Laura" class="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-emerald-500">
+            <input type="text" id="userNameInput" maxlength="24" placeholder="Ej: David o Laura" class="flex-1 min-w-0 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-emerald-500">
             <button id="saveUserNameBtn" class="px-3 bg-slate-800 text-white rounded-xl text-xs font-semibold hover:bg-slate-700">Guardar</button>
           </div>
-          <p class="text-[10px] text-slate-400 mt-1">Para saber quién añadió o compró cada artículo.</p>
         </div>
 
+        <!-- Grupos del súper -->
         <div class="pt-3 border-t border-slate-100">
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Grupos de la lista (orden del súper)</label>
+          <p class="text-[10px] text-slate-400 mt-0.5 mb-1.5">Ordénalos como recorres el súper: la lista saldrá en ese orden. Se comparten con el otro móvil.</p>
+          <div id="groupsManager" class="flex flex-col gap-1"></div>
+          <button id="addGroupBtn" type="button" class="mt-2 w-full bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold py-2"><i class="fa-solid fa-plus"></i> Crear grupo nuevo</button>
+        </div>
+
+        <!-- Estado de la nube -->
+        <div class="pt-3 border-t border-slate-100">
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Sincronización en la nube</label>
+          <div class="flex items-center gap-2 mt-1 bg-slate-50 p-2.5 rounded-xl">
+            <span id="cloudStatusDot" class="w-2.5 h-2.5 rounded-full bg-slate-300 flex-shrink-0"></span>
+            <span id="cloudStatusText" class="text-xs text-slate-600">Sin configurar</span>
+          </div>
+          <details id="fbConfigDetails" class="mt-2">
+            <summary class="text-[11px] text-emerald-700 font-semibold cursor-pointer">Pegar claves de Firebase</summary>
+            <p class="text-[10px] text-slate-400 mt-1">Pega aquí el bloque <code>firebaseConfig</code> que te da Firebase. Hazlo en los dos móviles con las mismas claves (o mejor, ponlas en <code>firebase-config.js</code> antes de compilar).</p>
+            <textarea id="fbConfigInput" rows="5" spellcheck="false" placeholder='apiKey: "AIza...", authDomain: "...", projectId: "...", appId: "..."' class="w-full mt-1 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-mono focus:outline-none focus:border-emerald-500 select-text"></textarea>
+            <div class="flex gap-2 mt-1">
+              <button id="saveFbConfigBtn" type="button" class="flex-1 bg-slate-800 text-white rounded-lg text-xs font-semibold py-1.5">Guardar y reiniciar</button>
+              <button id="clearFbConfigBtn" type="button" class="px-3 bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold py-1.5">Borrar</button>
+            </div>
+          </details>
+        </div>
+
+        <div id="codeSection" class="pt-3 border-t border-slate-100">
           <label class="text-[11px] font-bold text-slate-500 uppercase">Código de esta Lista</label>
           <div class="flex items-center justify-between bg-slate-100 p-2.5 rounded-xl mt-1">
-            <span id="currentListCodeLabel" class="font-mono font-bold text-xs text-slate-700 tracking-wider">CASA-FAMILIA</span>
-            <button id="copyCodeBtn" class="text-xs bg-white text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 font-medium hover:bg-slate-50 active:scale-95">
-              Copiar
-            </button>
+            <span id="currentListCodeLabel" class="font-mono font-bold text-xs text-slate-700 tracking-wider select-all">----</span>
+            <button id="copyCodeBtn" class="text-xs bg-white text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 font-medium hover:bg-slate-50 active:scale-95">Copiar</button>
           </div>
-          <p class="text-[10px] text-slate-400 mt-1">Tu mujer solo necesita este código para sincronizarse con esta lista.</p>
+        </div>
+
+        <!-- Copia de seguridad -->
+        <div class="pt-3 border-t border-slate-100">
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Copia de seguridad</label>
+          <p class="text-[10px] text-slate-400 mt-0.5">Guarda todas tus listas, el stock y los grupos en un mensaje. Si reinstalas o cambias de móvil, la pegas abajo y lo recuperas todo.</p>
+          <div class="grid grid-cols-2 gap-2 mt-1.5">
+            <button id="backupWhatsappBtn" type="button" class="bg-emerald-600 text-white rounded-lg text-xs font-semibold py-2 flex items-center justify-center gap-1.5"><i class="fa-brands fa-whatsapp"></i> Enviármela</button>
+            <button id="backupCopyBtn" type="button" class="bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold py-2 flex items-center justify-center gap-1.5"><i class="fa-regular fa-copy"></i> Copiar</button>
+          </div>
+          <details class="mt-2">
+            <summary class="text-[11px] text-emerald-700 font-semibold cursor-pointer">Restaurar copia o importar una lista</summary>
+            <p class="text-[10px] text-slate-400 mt-1">Pega una copia de seguridad o una lista enviada por WhatsApp con "Enviar lista" (líneas que empiezan por •). No se borra nada: solo se añade lo que falte.</p>
+            <textarea id="importInput" rows="4" spellcheck="false" placeholder="Pega aquí la copia o la lista…" class="w-full mt-1 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] focus:outline-none focus:border-emerald-500 select-text"></textarea>
+            <button id="importBtn" type="button" class="w-full mt-1 bg-slate-800 text-white rounded-lg text-xs font-semibold py-1.5">Importar</button>
+          </details>
         </div>
 
         <div id="deleteListSection" class="pt-3 border-t border-slate-100 flex flex-col gap-2">
-          <button id="deleteListBtn" class="w-full text-rose-600 bg-rose-50 hover:bg-rose-100 active:scale-95 text-xs font-semibold py-2 rounded-xl transition-all">
-            Eliminar esta lista
-          </button>
+          <button id="deleteListBtn" class="w-full text-rose-600 bg-rose-50 hover:bg-rose-100 active:scale-95 text-xs font-semibold py-2 rounded-xl transition-all">Eliminar esta lista</button>
+          <p id="deleteListHint" class="text-[10px] text-slate-400 text-center"></p>
         </div>
+        <p id="appVersionLabel" class="text-[10px] text-slate-300 text-center" data-version="__APP_VERSION__"></p>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL: BIENVENIDA (primer uso) -->
+  <div id="welcomeModal" class="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 transition-opacity opacity-0 pointer-events-none duration-200">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl transform scale-95 transition-transform duration-200 text-center">
+      <div class="w-14 h-14 rounded-2xl bg-emerald-500 text-white flex items-center justify-center mx-auto mb-3 text-2xl">🛒</div>
+      <h3 class="font-bold text-lg text-slate-800">¡Bienvenido a Nuestra Compra!</h3>
+      <p class="text-xs text-slate-500 mt-1 mb-4">¿Cómo te llamas? Así el otro móvil sabrá quién añade o gasta cada cosa.</p>
+      <form id="welcomeForm" class="flex flex-col gap-2">
+        <input type="text" id="welcomeNameInput" maxlength="24" placeholder="Tu nombre" required class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-center focus:outline-none focus:border-emerald-500">
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white py-2.5 rounded-xl font-semibold text-sm">Empezar</button>
+      </form>
     </div>
   </div>
 
   <!-- SCRIPT PRINCIPAL DE LA APP -->
   <script>
-    // --- ESTADO GLOBAL Y CONFIGURACIÓN ---
-    // CONFIGURACIÓN DE FIREBASE (Rellena esto con tu consola gratuita de Firebase para sync en tiempo real por internet)
-    const firebaseConfig = {
-      apiKey: "AIzaSy_DEMO_REEMPLAZA_CON_EL_TUYO",
-      authDomain: "nuestra-compra-demo.firebaseapp.com",
-      projectId: "nuestra-compra-demo",
-      storageBucket: "nuestra-compra-demo.appspot.com",
-      messagingSenderId: "123456789",
-      appId: "1:123456789:web:abcdef"
-    };
+    'use strict';
 
-    let db = null;
-    let unsubscribeFirestore = null;
-    try {
-      if (typeof firebase !== 'undefined' && firebaseConfig.apiKey !== "AIzaSy_DEMO_REEMPLAZA_CON_EL_TUYO") {
-        firebase.initializeApp(firebaseConfig);
-        db = firebase.firestore();
+    // =====================================================================
+    //  UTILIDADES
+    // =====================================================================
+    const isNative = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+    const $ = (id) => document.getElementById(id);
+
+    function lsGet(key, fallback) {
+      try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; }
+    }
+    function lsSet(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { console.log('localStorage err', e); }
+    }
+    function escapeHtml(text) {
+      if (text === undefined || text === null) return '';
+      return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function randomId(prefix) {
+      const a = new Uint32Array(2);
+      crypto.getRandomValues(a);
+      return prefix + Date.now().toString(36) + a[0].toString(36) + a[1].toString(36);
+    }
+    function norm(s) {
+      return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+    }
+    function toInt(v, def) {
+      const n = parseInt(v, 10);
+      return isNaN(n) ? def : Math.max(0, Math.min(999, n));
+    }
+    // Códigos de 8 caracteres sin letras que se confunden (sin O/0, I/1)
+    const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    function newShareCode() {
+      const a = new Uint32Array(8);
+      crypto.getRandomValues(a);
+      let s = '';
+      for (let i = 0; i < 8; i++) {
+        s += CODE_ALPHABET[a[i] % CODE_ALPHABET.length];
+        if (i === 3) s += '-';
       }
-    } catch(e) {
-      console.log('Firebase offline mode:', e);
+      return s;
+    }
+    function normalizeCode(input) {
+      let s = String(input || '').toUpperCase().replace(/\s+/g, '').replace(/[–—_.]/g, '-');
+      if (/^[A-Z0-9]{8}$/.test(s)) s = s.slice(0, 4) + '-' + s.slice(4);
+      return s;
+    }
+    function isValidCode(s) { return /^[A-Z0-9][A-Z0-9-]{3,19}$/.test(s); }
+
+    function timeAgo(ts) {
+      if (!ts) return '';
+      const diff = Math.max(0, Date.now() - ts);
+      const m = Math.floor(diff / 60000);
+      if (m < 2) return 'ahora';
+      if (m < 60) return 'hace ' + m + ' min';
+      const h = Math.floor(m / 60);
+      if (h < 24) return 'hace ' + h + ' h';
+      const d = Math.floor(h / 24);
+      return 'hace ' + d + (d === 1 ? ' día' : ' días');
     }
 
-    const APP_STATE = {
-      userName: localStorage.getItem('nc_userName') || 'Miembro ' + Math.floor(100 + Math.random() * 900),
-      currentListId: localStorage.getItem('nc_currentListId') || 'lista-hogar-default',
-      lists: JSON.parse(localStorage.getItem('nc_lists_v2') || 'null') || [
-        {
-          id: 'lista-hogar-default',
-          name: 'Súper Casa',
-          icon: '🛒',
-          type: 'shared',
-          code: 'CASA-' + Math.floor(1000 + Math.random() * 9000),
-          createdAt: Date.now()
-        },
-        {
-          id: 'lista-tech-default',
-          name: 'Black Friday Tech',
-          icon: '💻',
-          type: 'personal',
-          code: 'PERSONAL-BF',
-          createdAt: Date.now() - 10000
-        }
-      ],
-      selectedIcon: '🛒'
+    let toastTimer = null;
+    let toastActionFn = null;
+    function toast(msg, ms, actionLabel, actionFn) {
+      const el = $('toast');
+      $('toastMsg').textContent = msg;
+      const btn = $('toastAction');
+      toastActionFn = actionFn || null;
+      if (actionLabel && actionFn) { btn.textContent = actionLabel; btn.classList.remove('hidden'); }
+      else btn.classList.add('hidden');
+      el.classList.remove('opacity-0', 'translate-y-2', 'pointer-events-none');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(hideToast, ms || 2600);
+    }
+    function hideToast() {
+      $('toast').classList.add('opacity-0', 'translate-y-2', 'pointer-events-none');
+      toastActionFn = null;
+    }
+    $('toastAction').addEventListener('click', () => {
+      const fn = toastActionFn;
+      hideToast();
+      if (fn) fn();
+    });
+
+    function copyText(text) {
+      const fallback = () => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) {}
+        document.body.removeChild(ta);
+        return ok;
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text).then(() => true).catch(() => fallback());
+      }
+      return Promise.resolve(fallback());
+    }
+
+    function openWhatsapp(text) {
+      const url = 'https://wa.me/?text=' + encodeURIComponent(text);
+      if (isNative) window.location.href = url;
+      else window.open(url, '_blank');
+    }
+
+    // =====================================================================
+    //  GRUPOS (secciones del súper)
+    // =====================================================================
+    const DEFAULT_CATEGORIES = [
+      { id: 'frescos', name: 'Verduras', icon: '🥬' },
+      { id: 'fruta', name: 'Fruta', icon: '🍎' },
+      { id: 'carnes', name: 'Carne', icon: '🥩' },
+      { id: 'pescado', name: 'Pescado', icon: '🐟' },
+      { id: 'lacteos', name: 'Yogures y lácteos', icon: '🥛' },
+      { id: 'pan', name: 'Pan', icon: '🍞' },
+      { id: 'despensa', name: 'Pasta y despensa', icon: '🍝' },
+      { id: 'congelados', name: 'Congelados', icon: '🧊' },
+      { id: 'bebidas', name: 'Bebida', icon: '🥤' },
+      { id: 'higiene', name: 'Higiene', icon: '🧴' },
+      { id: 'limpieza', name: 'Limpieza', icon: '🧽' },
+      { id: 'otros', name: 'Otros', icon: '📦' }
+    ];
+
+    // Palabras para adivinar el grupo al escribir (gana la coincidencia más larga)
+    const CAT_KEYWORDS = {
+      frescos: ['tomate', 'lechuga', 'cebolla', 'ajo', 'patata', 'zanahoria', 'pimiento', 'calabacin', 'calabaza', 'pepino', 'berenjena', 'brocoli', 'espinaca', 'judia', 'champinon', 'seta', 'puerro', 'coliflor', 'repollo', 'aguacate', 'verdura', 'ensalada', 'perejil', 'apio', 'alcachofa', 'esparrago', 'rucula', 'canonigo'],
+      fruta: ['manzana', 'platano', 'naranja', 'pera', 'fresa', 'uva', 'melon', 'sandia', 'kiwi', 'limon', 'mandarina', 'pina', 'melocoton', 'cereza', 'fruta', 'mango', 'arandano', 'frambuesa', 'ciruela', 'nectarina', 'higo'],
+      carnes: ['pollo', 'ternera', 'cerdo', 'carne', 'filete', 'hamburguesa', 'chorizo', 'jamon', 'salchicha', 'pavo', 'lomo', 'costilla', 'bacon', 'beicon', 'embutido', 'pechuga', 'cordero', 'conejo', 'albondiga', 'fuet', 'salchichon', 'mortadela'],
+      pescado: ['pescado', 'merluza', 'salmon', 'gamba', 'langostino', 'sardina', 'bacalao', 'calamar', 'mejillon', 'dorada', 'lubina', 'boqueron', 'pulpo', 'sepia', 'rape', 'emperador', 'almeja'],
+      lacteos: ['leche', 'yogur', 'queso', 'mantequilla', 'nata', 'huevo', 'kefir', 'natillas', 'flan', 'cuajada', 'requeson', 'batido'],
+      pan: ['pan', 'baguette', 'barra de pan', 'tostada', 'bolleria', 'croissant', 'magdalena', 'pan de molde', 'picos', 'regana'],
+      despensa: ['pasta', 'macarron', 'espagueti', 'arroz', 'lenteja', 'garbanzo', 'alubia', 'aceite', 'sal', 'azucar', 'harina', 'cafe', 'cacao', 'galleta', 'cereal', 'tomate frito', 'atun', 'conserva', 'legumbre', 'fideo', 'caldo', 'especia', 'vinagre', 'mayonesa', 'ketchup', 'mostaza', 'infusion', 'te ', 'miel', 'mermelada', 'chocolate', 'patatas fritas', 'frutos secos', 'tomate triturado', 'aceitunas'],
+      congelados: ['congelad', 'helado', 'pizza', 'croqueta', 'varitas', 'guisantes', 'empanadilla', 'hielo'],
+      bebidas: ['agua', 'cerveza', 'vino', 'refresco', 'coca', 'fanta', 'zumo', 'tonica', 'aquarius', 'nestea', 'leche de avena', 'bebida', 'sprite', 'gaseosa', 'cava', 'pepsi', 'red bull', 'monster', 'kas'],
+      higiene: ['papel higienico', 'champu', 'gel', 'pasta de dientes', 'dentifrico', 'desodorante', 'compresa', 'tampon', 'cepillo de dientes', 'colonia', 'crema', 'maquinilla', 'cuchilla', 'panal', 'toallita', 'jabon de manos', 'enjuague', 'bastoncillo', 'algodon', 'protector solar', 'acondicionador', 'hilo dental'],
+      limpieza: ['lejia', 'friegasuelos', 'detergente', 'suavizante', 'lavavajillas', 'fairy', 'estropajo', 'bayeta', 'limpiacristales', 'amoniaco', 'bolsas de basura', 'papel de cocina', 'servilleta', 'ambientador', 'quitagrasas', 'insecticida', 'fregona', 'pastillas lavavajillas', 'papel de aluminio', 'film', 'mopa', 'sanytol', 'cif', 'don limpio', 'vitroceramica']
     };
 
-    // Canal local de comunicación en tiempo real entre pestañas/ventanas
-    const syncChannel = new BroadcastChannel('nuestra_compra_sync');
+    function guessCategory(name, list) {
+      const n = ' ' + norm(name) + ' ';
+      let best = null, bestLen = 0;
+      Object.keys(CAT_KEYWORDS).forEach(cat => {
+        CAT_KEYWORDS[cat].forEach(kw => {
+          const k = norm(kw);
+          if (k.length > bestLen && n.indexOf(' ' + k) !== -1) { best = cat; bestLen = k.length; }
+        });
+      });
+      if (!best) return null;
+      return getCategories(list).some(c => c.id === best) ? best : null;
+    }
 
-    // Categorías con iconos legibles
-    const CATEGORIES = {
-      frescos: { label: 'Frutas y Verduras', icon: '🥬' },
-      lacteos: { label: 'Lácteos y Huevos', icon: '🥛' },
-      carnes: { label: 'Carnes y Pescados', icon: '🥩' },
-      despensa: { label: 'Despensa y Pasta', icon: '🥫' },
-      limpieza: { label: 'Limpieza e Higiene', icon: '🧼' },
-      bebidas: { label: 'Bebidas', icon: '🥤' },
-      congelados: { label: 'Congelados', icon: '🧊' },
-      otros: { label: 'Varios', icon: '📦' }
-    };
+    // ---- Unidades y formatos de compra ----
+    function pluralEs(w, n) {
+      w = String(w || '').trim();
+      if (!w) return 'ud';
+      if (n === 1) return w;
+      if (/[aeiouáéíóú]$/i.test(w)) return w + 's';
+      if (/z$/i.test(w)) return w.slice(0, -1) + 'ces';
+      if (/[kptcgbm]$/i.test(w)) return w + 's';
+      return w + 'es';
+    }
+    function packSizeOf(p) { return Math.max(1, parseInt(p && p.packSize, 10) || 1); }
+    function hasPack(p) { return packSizeOf(p) > 1; }
+    function unitOf(p, n) { return pluralEs(p && p.unit, n); }
+    function packNameOf(p, n) { return pluralEs((p && p.packName) || 'pack', n); }
+    function unitsText(p, n) { return n + (p && p.unit ? ' ' + unitOf(p, n) : ''); }
+    function packsText(p, packs, size) {
+      size = size || packSizeOf(p);
+      return packs + ' ' + packNameOf(p, packs) + ' (' + (packs * size) + ' ' + unitOf(p, packs * size) + ')';
+    }
+    // Qué comprar para acercarse al máximo sin pasarse (como mínimo 1 caja)
+    function buyPlan(p) {
+      const need = Math.max(1, (p.max || 0) - (p.qty || 0));
+      if (!hasPack(p)) return { units: need, packs: 0, size: 1, text: p.unit ? unitsText(p, need) : 'x' + need };
+      const size = packSizeOf(p);
+      const packs = Math.max(1, Math.floor(need / size));
+      return { units: packs * size, packs, size, text: packsText(p, packs, size) };
+    }
+    function formatInfo(p) {
+      return hasPack(p) ? packNameOf(p, 1) + ' de ' + packSizeOf(p) + (p.unit ? ' ' + unitOf(p, packSizeOf(p)) : '') : '';
+    }
 
-    // Sugerencias rápidas predeterminadas
+    function getCategories(list) {
+      let cats = (list && Array.isArray(list.categories) && list.categories.length) ? list.categories : DEFAULT_CATEGORIES;
+      if (!cats.some(c => c.id === 'otros')) cats = cats.concat([{ id: 'otros', name: 'Otros', icon: '📦' }]);
+      return cats;
+    }
+    function catOf(list, id) {
+      const cats = getCategories(list);
+      return cats.find(c => c.id === id) || cats.find(c => c.id === 'otros');
+    }
+    function catIdOf(list, id) { return catOf(list, id).id; }
+
     const QUICK_ITEMS = [
       { name: 'Leche entera', cat: 'lacteos', icon: '🥛' },
       { name: 'Huevos docena', cat: 'lacteos', icon: '🥚' },
-      { name: 'Plátanos', cat: 'frescos', icon: '🍌' },
-      { name: 'Pan de molde', cat: 'despensa', icon: '🍞' },
-      { name: 'Café', cat: 'despensa', icon: '☕' },
-      { name: 'Papel higiénico', cat: 'limpieza', icon: '🧻' },
-      { name: 'Aceite de oliva', cat: 'despensa', icon: '🫒' },
+      { name: 'Plátanos', cat: 'fruta', icon: '🍌' },
+      { name: 'Tomates', cat: 'frescos', icon: '🍅' },
+      { name: 'Pan', cat: 'pan', icon: '🍞' },
+      { name: 'Yogures', cat: 'lacteos', icon: '🥄' },
+      { name: 'Pechugas de pollo', cat: 'carnes', icon: '🍗' },
       { name: 'Agua 6L', cat: 'bebidas', icon: '💧' }
     ];
 
-    // ELEMENTOS DEL DOM
-    const listSelectorBtn = document.getElementById('listSelectorBtn');
-    const currentListName = document.getElementById('currentListName');
-    const currentListIcon = document.getElementById('currentListIcon');
-    const currentListTypeBadge = document.getElementById('currentListTypeBadge');
-    const currentListCodeLabel = document.getElementById('currentListCodeLabel');
-    const listSheetModal = document.getElementById('listSheetModal');
-    const listSheetContent = document.getElementById('listSheetContent');
-    const closeListSheetBtn = document.getElementById('closeListSheetBtn');
-    const userListsContainer = document.getElementById('userListsContainer');
-    const openCreateListBtn = document.getElementById('openCreateListBtn');
-    const openJoinCodeBtn = document.getElementById('openJoinCodeBtn');
+    const STOCK_IDEAS = [
+      { name: 'Lejía', cat: 'limpieza', icon: '🧴', unit: 'botella', pack: '', size: 1 },
+      { name: 'Papel higiénico', cat: 'higiene', icon: '🧻', unit: 'rollo', pack: 'paquete', size: 12 },
+      { name: 'Coca-Cola', cat: 'bebidas', icon: '🥤', unit: 'lata', pack: 'caja', size: 24 },
+      { name: 'Leche', cat: 'lacteos', icon: '🥛', unit: 'brick', pack: 'pack', size: 6 },
+      { name: 'Agua', cat: 'bebidas', icon: '💧', unit: 'botella', pack: 'pack', size: 6 },
+      { name: 'Aceite de oliva', cat: 'despensa', icon: '🫒', unit: 'botella', pack: '', size: 1 },
+      { name: 'Detergente', cat: 'limpieza', icon: '🧺', unit: 'bote', pack: '', size: 1 },
+      { name: 'Gel de ducha', cat: 'higiene', icon: '🧼', unit: 'bote', pack: '', size: 1 },
+      { name: 'Pasta de dientes', cat: 'higiene', icon: '🪥', unit: 'tubo', pack: '', size: 1 },
+      { name: 'Atún en lata', cat: 'despensa', icon: '🐟', unit: 'lata', pack: 'pack', size: 3 },
+      { name: 'Yogures', cat: 'lacteos', icon: '🥄', unit: 'yogur', pack: 'pack', size: 4 },
+      { name: 'Papel de cocina', cat: 'limpieza', icon: '🧻', unit: 'rollo', pack: 'paquete', size: 2 }
+    ];
 
-    const createListModal = document.getElementById('createListModal');
-    const closeCreateListBtn = document.getElementById('closeCreateListBtn');
-    const createListForm = document.getElementById('createListForm');
-    const newListNameInput = document.getElementById('newListName');
-    const iconButtons = document.querySelectorAll('.icon-opt');
+    // =====================================================================
+    //  ESTADO
+    // =====================================================================
+    const DEVICE_ID = (function () {
+      let id = lsGet('nc_deviceId', null);
+      if (!id) { id = randomId('dev_'); lsSet('nc_deviceId', id); }
+      return id;
+    })();
 
-    const settingsBtn = document.getElementById('settingsBtn');
-    const settingsModal = document.getElementById('settingsModal');
-    const closeSettingsBtn = document.getElementById('closeSettingsBtn');
-    const userNameInput = document.getElementById('userNameInput');
-    const saveUserNameBtn = document.getElementById('saveUserNameBtn');
-    const copyCodeBtn = document.getElementById('copyCodeBtn');
-    const deleteListBtn = document.getElementById('deleteListBtn');
-    const shareListBtn = document.getElementById('shareListBtn');
-
-    const addItemForm = document.getElementById('addItemForm');
-    const itemInput = document.getElementById('itemInput');
-    const categorySelect = document.getElementById('categorySelect');
-    const qtyInput = document.getElementById('qtyInput');
-    const quickItemsContainer = document.getElementById('quickItemsContainer');
-
-    const pendingList = document.getElementById('pendingList');
-    const completedList = document.getElementById('completedList');
-    const completedSection = document.getElementById('completedSection');
-    const emptyPendingState = document.getElementById('emptyPendingState');
-    const pendingCount = document.getElementById('pendingCount');
-    const completedCount = document.getElementById('completedCount');
-    const progressBar = document.getElementById('progressBar');
-    const progressPercent = document.getElementById('progressPercent');
-    const progressText = document.getElementById('progressText');
-    const sendWhatsappBtn = document.getElementById('sendWhatsappBtn');
-    const clearCompletedBtn = document.getElementById('clearCompletedBtn');
-
-    // --- FUNCIONES DE ALMACENAMIENTO DE ITEMS POR LISTA ---
-    function getItemsStorageKey(listId) {
-      return 'nc_items_' + listId;
+    function storedUserName() {
+      try { return localStorage.getItem('nc_userName') || ''; } catch (e) { return ''; }
     }
+
+    const APP_STATE = {
+      userName: storedUserName() || 'Yo',
+      currentListId: lsGet('nc_currentListId_v4', null) || (function () { try { return localStorage.getItem('nc_currentListId'); } catch (e) { return null; } })(),
+      lists: lsGet('nc_lists_v2', null),
+      members: {},
+      selectedIcon: '🛒',
+      tab: lsGet('nc_tab', 'list'),
+      stockLowOnly: false,
+      catTouched: false    // el usuario eligió el grupo a mano
+    };
+
+    // --- Migración desde versiones anteriores y primer arranque ---
+    (function migrate() {
+      if (!Array.isArray(APP_STATE.lists) || APP_STATE.lists.length === 0) {
+        APP_STATE.lists = [{
+          id: 'lista-hogar-default', name: 'Súper Casa', icon: '🛒', type: 'shared',
+          code: newShareCode(), isOwner: true, synced: {}, createdAt: Date.now()
+        }];
+        lsSet('nc_lists_v2', APP_STATE.lists);
+        lsSet('nc_migrated_v4', true);
+        return;
+      }
+      if (!lsGet('nc_migrated_v4', false)) {
+        const DEMO_IDS = ['1', '2', '3', 't1'];
+        APP_STATE.lists.forEach(l => {
+          if (typeof l.isOwner !== 'boolean') l.isOwner = !String(l.id).startsWith('list_joined_');
+          if (l.type === 'shared' && l.isOwner && /^CASA-\d{4}$/.test(l.code)) l.code = newShareCode();
+          const items = lsGet('nc_items_' + l.id, null);
+          if (Array.isArray(items)) lsSet('nc_items_' + l.id, items.filter(i => !DEMO_IDS.includes(String(i.id))));
+        });
+        lsSet('nc_migrated_v4', true);
+      }
+      // v5 → v6: la marca de "ya subido a la nube" pasa a ser por tipo de dato
+      APP_STATE.lists.forEach(l => {
+        if (!l.synced) { l.synced = { items: !!l.cloudSynced }; delete l.cloudSynced; }
+      });
+      lsSet('nc_lists_v2', APP_STATE.lists);
+    })();
+
+    // =====================================================================
+    //  DATOS LOCALES (productos de la lista y stock)
+    // =====================================================================
+    function saveLists() { lsSet('nc_lists_v2', APP_STATE.lists); }
 
     function getCurrentList() {
       let list = APP_STATE.lists.find(l => l.id === APP_STATE.currentListId);
       if (!list) {
         list = APP_STATE.lists[0];
         APP_STATE.currentListId = list.id;
-        localStorage.setItem('nc_currentListId', list.id);
+        lsSet('nc_currentListId_v4', list.id);
       }
       return list;
     }
 
-    function saveLists() {
-      localStorage.setItem('nc_lists_v2', JSON.stringify(APP_STATE.lists));
+    function localKey(kind, listId) { return (kind === 'stock' ? 'nc_stock_' : 'nc_items_') + listId; }
+    function readLocal(kind, listId) {
+      const v = lsGet(localKey(kind, listId), []);
+      return Array.isArray(v) ? v : [];
+    }
+    function writeLocal(kind, listId, arr) { lsSet(localKey(kind, listId), arr); }
+    function readLocalItems(listId) { return readLocal('items', listId); }
+    function writeLocalItems(listId, items) { writeLocal('items', listId, items); }
+
+    // =====================================================================
+    //  NUBE (Firebase): auth anónima + un documento por producto
+    // =====================================================================
+    const Cloud = {
+      db: null,
+      ready: false,
+      status: 'off',
+      error: '',
+      pending: { items: false, stock: false },
+      fromCache: true,
+      online: navigator.onLine
+    };
+    let unsubs = [];
+
+    function parseFirebaseConfig(text) {
+      if (!text) return null;
+      try {
+        const j = JSON.parse(text);
+        if (j && j.apiKey) return j;
+      } catch (e) {}
+      const keys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId', 'measurementId'];
+      const cfg = {};
+      keys.forEach(k => {
+        const m = text.match(new RegExp('["\']?' + k + '["\']?\\s*:\\s*["\']([^"\']+)["\']'));
+        if (m) cfg[k] = m[1];
+      });
+      return (cfg.apiKey && cfg.projectId && cfg.appId) ? cfg : null;
     }
 
-    function getItems() {
-      const data = localStorage.getItem(getItemsStorageKey(APP_STATE.currentListId));
-      if (!data) {
-        // Semilla inicial amigable para la lista del hogar
-        if (APP_STATE.currentListId === 'lista-hogar-default') {
-          const initial = [
-            { id: '1', name: 'Leche entera (pack 6)', category: 'lacteos', qty: '1', completed: false, addedBy: 'Laura', addedAt: Date.now() - 3600000 },
-            { id: '2', name: 'Aguacates', category: 'frescos', qty: '4 ud', completed: false, addedBy: 'David', addedAt: Date.now() - 1800000 },
-            { id: '3', name: 'Pan de masa madre', category: 'despensa', qty: '', completed: true, addedBy: 'David', completedBy: 'David', completedAt: Date.now() }
-          ];
-          saveItems(initial);
-          return initial;
-        } else if (APP_STATE.currentListId === 'lista-tech-default') {
-          const initialTech = [
-            { id: 't1', name: 'Auriculares cancelación de ruido', category: 'otros', qty: '1', completed: false, addedBy: APP_STATE.userName, addedAt: Date.now() }
-          ];
-          saveItems(initialTech);
-          return initialTech;
-        }
-        return [];
-      }
-      return JSON.parse(data);
+    function getFirebaseConfig() {
+      const saved = lsGet('nc_fbConfig', null);
+      if (saved && saved.apiKey) return { cfg: saved, source: 'app' };
+      const c = window.FIREBASE_CONFIG;
+      if (c && c.apiKey && !/PEGA_AQUI|REEMPLAZA|DEMO/i.test(c.apiKey)) return { cfg: c, source: 'file' };
+      return { cfg: null, source: null };
     }
 
-    function saveItems(items, broadcast = true) {
-      localStorage.setItem(getItemsStorageKey(APP_STATE.currentListId), JSON.stringify(items));
-      if (broadcast) {
-        syncChannel.postMessage({
-          type: 'UPDATE_ITEMS',
-          listId: APP_STATE.currentListId,
-          items: items,
-          sender: APP_STATE.userName
-        });
+    function friendlyError(e) {
+      const code = (e && (e.code || e.message)) || '';
+      if (/operation-not-allowed|admin-restricted/.test(code)) return 'Activa el acceso "Anónimo" en Firebase › Authentication › Método de acceso.';
+      if (/api-key|invalid-api-key/.test(code)) return 'Las claves de Firebase no son válidas. Revisa firebase-config.js.';
+      if (/permission-denied/.test(code)) return 'Firebase ha denegado el acceso. Revisa que hayas publicado las reglas de firestore.rules (README, paso 4).';
+      if (/network|unavailable/.test(code)) return 'Sin conexión. Se sincronizará cuando vuelva internet.';
+      if (/not-found|NOT_FOUND/.test(code)) return 'No existe la base de datos Firestore en ese proyecto. Créala (README, paso 3).';
+      return 'Error de la nube: ' + code;
+    }
 
-        // Sincronización en la nube en tiempo real (si está compartida y Firebase activo)
-        const currentList = getCurrentList();
-        if (db && currentList.type === 'shared') {
-          db.collection('listas').doc(currentList.code).set({
-            name: currentList.name,
-            icon: currentList.icon,
-            updatedAt: Date.now(),
-            updatedBy: APP_STATE.userName,
-            items: items
-          }, { merge: true }).catch(err => console.log('Firestore write err:', err));
-        }
+    function initCloud() {
+      const { cfg } = getFirebaseConfig();
+      if (!cfg) { Cloud.status = 'off'; updateSyncUI(); return; }
+      if (typeof firebase === 'undefined' || !firebase.auth || !firebase.firestore) {
+        Cloud.status = 'error';
+        Cloud.error = 'No se han podido cargar las librerías de Firebase.';
+        updateSyncUI();
+        return;
       }
-      renderApp();
+      try {
+        if (!firebase.apps.length) firebase.initializeApp(cfg);
+        Cloud.db = firebase.firestore();
+        Cloud.status = 'connecting';
+        updateSyncUI();
+        Cloud.db.enablePersistence({ synchronizeTabs: true })
+          .catch(err => console.log('Persistencia no disponible:', err && err.code))
+          .finally(startAuth);
+      } catch (e) {
+        Cloud.status = 'error';
+        Cloud.error = friendlyError(e);
+        updateSyncUI();
+      }
+    }
+
+    function startAuth() {
+      firebase.auth().onAuthStateChanged(user => {
+        if (user) {
+          const first = !Cloud.ready;
+          Cloud.ready = true;
+          Cloud.status = 'online';
+          Cloud.error = '';
+          updateSyncUI();
+          if (first) setupCloudListener();
+        } else {
+          firebase.auth().signInAnonymously().catch(e => {
+            Cloud.status = 'error';
+            Cloud.error = friendlyError(e);
+            updateSyncUI();
+          });
+        }
+      });
+    }
+
+    function cloudOn(list) { return Cloud.ready && list && list.type === 'shared'; }
+    function listRef(list) { return Cloud.db.collection('listas').doc(list.code); }
+    function cref(list, kind) { return listRef(list).collection(kind); }
+    function itemsRef(list) { return cref(list, 'items'); }
+    function inc(n) { return firebase.firestore.FieldValue.increment(n); }
+    function isSynced(list, kind) { return !!(list.synced && list.synced[kind]); }
+
+    function onWriteErr(err) {
+      if (/not-found/.test((err && err.code) || '')) return; // el otro móvil ya lo borró
+      console.log('Firestore write err:', err);
+      Cloud.status = 'error';
+      Cloud.error = friendlyError(err);
+      updateSyncUI();
+    }
+
+    function forCloud(obj) {
+      const copy = Object.assign({}, obj);
+      delete copy.id;
+      Object.keys(copy).forEach(k => copy[k] === undefined && delete copy[k]);
+      return copy;
+    }
+
+    function stopListeners() {
+      unsubs.forEach(u => { try { u(); } catch (e) {} });
+      unsubs = [];
+    }
+
+    function listenKind(list, kind) {
+      const listId = list.id;
+      let firstServerSnap = true;
+      return cref(list, kind).onSnapshot({ includeMetadataChanges: true }, snap => {
+        if (APP_STATE.currentListId !== listId) return;
+        const l = APP_STATE.lists.find(x => x.id === listId);
+        if (!l) return;
+        Cloud.pending[kind] = snap.metadata.hasPendingWrites;
+        Cloud.fromCache = snap.metadata.fromCache;
+
+        // Primera vez que estos datos llegan a la nube: subir lo que ya hubiera en el móvil
+        if (!isSynced(l, kind)) {
+          if (snap.metadata.fromCache) { updateSyncUI(); return; }
+          l.synced = l.synced || {};
+          l.synced[kind] = true;
+          saveLists();
+          if (snap.empty) {
+            const local = readLocal(kind, listId);
+            if (local.length) {
+              const batch = Cloud.db.batch();
+              local.forEach(it => batch.set(cref(l, kind).doc(it.id), forCloud(it)));
+              batch.commit().catch(onWriteErr);
+              updateSyncUI();
+              return;
+            }
+          }
+        }
+
+        const remoteChange = !firstServerSnap && !snap.metadata.hasPendingWrites &&
+          snap.docChanges().some(c => !c.doc.metadata.hasPendingWrites);
+        if (!snap.metadata.fromCache) firstServerSnap = false;
+
+        writeLocal(kind, listId, snap.docs.map(d => Object.assign({}, d.data(), { id: d.id })));
+        renderAll();
+        if (remoteChange) pulseSync();
+      }, err => onWriteErr(err));
     }
 
     function setupCloudListener() {
-      if (unsubscribeFirestore) {
-        unsubscribeFirestore();
-        unsubscribeFirestore = null;
-      }
-      const currentList = getCurrentList();
-      if (!db || currentList.type !== 'shared') return;
+      stopListeners();
+      APP_STATE.members = {};
+      const list = getCurrentList();
+      if (!cloudOn(list)) { renderMembers(); updateSyncUI(); return; }
+      const listId = list.id;
 
-      unsubscribeFirestore = db.collection('listas').doc(currentList.code)
-        .onSnapshot((doc) => {
-          if (doc.exists) {
-            const data = doc.data();
-            if (data && data.items && data.updatedBy !== APP_STATE.userName) {
-              localStorage.setItem(getItemsStorageKey(APP_STATE.currentListId), JSON.stringify(data.items));
-              renderApp();
-              const pulse = document.getElementById('syncPulse');
-              if (pulse) {
-                pulse.classList.add('scale-150');
-                setTimeout(() => pulse.classList.remove('scale-150'), 400);
-              }
-            }
-          }
-        }, err => console.log('Firestore listen err:', err));
+      unsubs.push(listenKind(list, 'items'));
+      unsubs.push(listenKind(list, 'stock'));
+      unsubs.push(listRef(list).onSnapshot(doc => {
+        if (APP_STATE.currentListId !== listId || !doc.exists) return;
+        const d = doc.data() || {};
+        APP_STATE.members = d.members || {};
+        const l = APP_STATE.lists.find(x => x.id === listId);
+        let changed = false;
+        if (l && !l.isOwner && d.name && (l.name !== d.name || l.icon !== d.icon)) {
+          l.name = d.name; l.icon = d.icon || l.icon; changed = true;
+        }
+        // Grupos compartidos
+        if (l && Array.isArray(d.categories) && JSON.stringify(d.categories) !== JSON.stringify(l.categories || null)) {
+          l.categories = d.categories; changed = true;
+        }
+        if (changed) { saveLists(); renderAll(); }
+        renderMembers();
+        renderBanner();
+      }, err => console.log('meta err', err)));
+
+      touchMembership(list);
     }
 
-    // --- RENDERIZADO DE LA INTERFAZ ---
+    function touchMembership(list) {
+      if (!cloudOn(list)) return;
+      const data = { updatedAt: Date.now(), members: {} };
+      data.members[DEVICE_ID] = { name: APP_STATE.userName, lastSeen: Date.now() };
+      if (list.isOwner) { data.name = list.name; data.icon = list.icon; }
+      listRef(list).set(data, { merge: true }).catch(onWriteErr);
+    }
+
+    function pulseSync() {
+      const pulse = $('syncPulse');
+      pulse.classList.add('scale-150');
+      setTimeout(() => pulse.classList.remove('scale-150'), 400);
+    }
+
+    // =====================================================================
+    //  INDICADORES DE ESTADO
+    // =====================================================================
+    function syncState() {
+      const list = getCurrentList();
+      const pending = Cloud.pending.items || Cloud.pending.stock;
+      if (list.type !== 'shared') return { text: 'Solo mía · en este móvil', dot: 'bg-slate-300', color: 'text-slate-500' };
+      if (Cloud.status === 'off') return { text: 'Compartida · nube sin activar', dot: 'bg-slate-300', color: 'text-amber-600' };
+      if (Cloud.status === 'error') return { text: 'Compartida · error de nube', dot: 'bg-rose-500', color: 'text-rose-600' };
+      if (Cloud.status === 'connecting') return { text: 'Compartida · conectando…', dot: 'bg-amber-400', color: 'text-amber-600' };
+      if (!Cloud.online || (Cloud.fromCache && pending)) return { text: 'Compartida · sin conexión', dot: 'bg-amber-400', color: 'text-amber-600' };
+      if (pending) return { text: 'Compartida · enviando…', dot: 'bg-amber-400', color: 'text-amber-600' };
+      const n = Object.keys(APP_STATE.members).length;
+      return { text: 'Compartida · sincronizada' + (n > 1 ? ' · ' + n + ' móviles' : ''), dot: 'bg-emerald-500', color: 'text-brand-600' };
+    }
+
+    function updateSyncUI() {
+      const s = syncState();
+      const badge = $('currentListTypeBadge');
+      badge.textContent = s.text;
+      badge.className = 'text-[10px] font-medium block truncate ' + s.color;
+      $('syncPulse').className = 'absolute top-1.5 right-1.5 w-2 h-2 rounded-full ring-2 ring-white transition-transform ' + s.dot;
+
+      let cloudText, cloudDot;
+      if (Cloud.status === 'off') { cloudText = 'Sin configurar. Pon tus claves de Firebase para conectar dos móviles.'; cloudDot = 'bg-slate-300'; }
+      else if (Cloud.status === 'error') { cloudText = Cloud.error || 'Error'; cloudDot = 'bg-rose-500'; }
+      else if (Cloud.status === 'connecting') { cloudText = 'Conectando con Firebase…'; cloudDot = 'bg-amber-400'; }
+      else if (!Cloud.online) { cloudText = 'Sin conexión. Los cambios se guardan y se envían al volver internet.'; cloudDot = 'bg-amber-400'; }
+      else { cloudText = 'Conectada a Firebase (' + (getFirebaseConfig().cfg || {}).projectId + ')'; cloudDot = 'bg-emerald-500'; }
+      $('cloudStatusText').textContent = cloudText;
+      $('cloudStatusDot').className = 'w-2.5 h-2.5 rounded-full flex-shrink-0 ' + cloudDot;
+
+      renderBanner();
+      renderConnectModal();
+    }
+
+    // =====================================================================
+    //  PESTAÑAS
+    // =====================================================================
+    function setTab(tab) {
+      if (!['list', 'stock', 'minmax'].includes(tab)) tab = 'list';
+      APP_STATE.tab = tab;
+      lsSet('nc_tab', tab);
+      $('viewList').classList.toggle('hidden', tab !== 'list');
+      $('viewStock').classList.toggle('hidden', tab !== 'stock');
+      $('viewStock').classList.toggle('flex', tab === 'stock');
+      $('viewMinmax').classList.toggle('hidden', tab !== 'minmax');
+      $('viewMinmax').classList.toggle('flex', tab === 'minmax');
+      $('progressWrap').classList.toggle('hidden', tab !== 'list');
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        const on = b.dataset.tab === tab;
+        b.classList.toggle('text-emerald-600', on);
+        b.classList.toggle('text-slate-400', !on);
+      });
+      window.scrollTo(0, 0);
+    }
+    document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+    document.querySelectorAll('[data-goto-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.gotoTab)));
+
+    // =====================================================================
+    //  RENDERIZADO
+    // =====================================================================
+    function renderAll() {
+      renderApp();
+      renderStock();
+      renderMinmax();
+      renderBadges();
+    }
+
+    function renderCategorySelects() {
+      const list = getCurrentList();
+      const cats = getCategories(list);
+      document.querySelectorAll('.cat-select').forEach(sel => {
+        const prev = sel.value;
+        sel.innerHTML = cats.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.icon)} ${escapeHtml(c.name)}</option>`).join('') +
+          '<option value="__new__">➕ Crear grupo nuevo…</option>';
+        sel.value = cats.some(c => c.id === prev) ? prev : 'otros';
+        if (!sel.value) sel.value = 'otros';
+        sel.dataset.prev = sel.value;
+      });
+    }
+
+    function itemRowHtml(item) {
+      const autoBadge = item.stockId
+        ? '<span class="bg-amber-100 text-amber-700 font-semibold text-[9px] px-1.5 py-0.5 rounded-md" title="Añadido porque llegó al mínimo">📦 stock</span>'
+        : (findStockFor(getCurrentList(), item) ? '<span class="bg-sky-100 text-sky-700 font-semibold text-[9px] px-1.5 py-0.5 rounded-md" title="Al meterlo en el carrito se suma al stock">📦 suma al stock</span>' : '');
+      return `
+          <div class="flex items-center gap-3 min-w-0 flex-1">
+            <button data-action="toggle" data-id="${escapeHtml(item.id)}" class="w-6 h-6 rounded-lg border-2 border-slate-300 hover:border-emerald-500 active:scale-90 flex items-center justify-center transition-all flex-shrink-0" aria-label="Marcar"></button>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="item-name font-medium text-slate-800 text-sm truncate">${escapeHtml(item.name)}</span>
+                ${item.qty ? `<span class="bg-slate-100 text-slate-600 font-semibold text-[10px] px-1.5 py-0.5 rounded-md">${escapeHtml(item.qty)}</span>` : ''}
+                ${autoBadge}
+              </div>
+              <div class="text-[10px] text-slate-400 mt-0.5">${item.stockId ? 'Llegó al mínimo' : 'Añadido por <strong class="text-slate-600">' + escapeHtml(item.addedBy || 'Alguien') + '</strong>'} · ${timeAgo(item.addedAt)}</div>
+            </div>
+          </div>
+          <button data-action="delete" data-id="${escapeHtml(item.id)}" class="text-slate-300 hover:text-rose-500 p-1.5 rounded-lg active:scale-95 transition-colors" title="Borrar">
+            <i class="fa-regular fa-trash-can text-xs"></i>
+          </button>`;
+    }
+
     function renderApp() {
-      const currentList = getCurrentList();
+      const list = getCurrentList();
+      $('currentListName').textContent = list.name;
+      $('currentListIcon').innerHTML = '<span class="text-base">' + escapeHtml(list.icon) + '</span>';
+      $('currentListCodeLabel').textContent = list.code;
+      $('codeSection').classList.toggle('hidden', list.type !== 'shared');
 
-      // Cabecera
-      currentListName.textContent = currentList.name;
-      currentListIcon.innerHTML = `<span class="text-base">${currentList.icon}</span>`;
-      currentListTypeBadge.textContent = currentList.type === 'shared' ? 'Compartida' : 'Solo Mía';
-      currentListCodeLabel.textContent = currentList.code;
-
-      // Ocultar o mostrar botón de eliminar si queda solo 1
-      const deleteSection = document.getElementById('deleteListSection');
-      if (APP_STATE.lists.length <= 1) {
-        deleteSection.classList.add('hidden');
+      $('deleteListSection').classList.toggle('hidden', APP_STATE.lists.length <= 1);
+      if (list.type === 'shared') {
+        $('deleteListBtn').textContent = 'Quitar esta lista de este móvil';
+        $('deleteListHint').textContent = 'El otro móvil la conservará. Puedes volver a unirte con el código.';
       } else {
-        deleteSection.classList.remove('hidden');
+        $('deleteListBtn').textContent = 'Eliminar esta lista';
+        $('deleteListHint').textContent = '';
       }
 
-      // Renderizar productos
-      const items = getItems();
+      renderCategorySelects();
+
+      const items = readLocalItems(list.id);
       const pending = items.filter(i => !i.completed);
-      const completed = items.filter(i => i.completed);
+      const completed = items.filter(i => i.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
 
-      pendingCount.textContent = pending.length;
-      completedCount.textContent = completed.length;
+      $('pendingCount').textContent = pending.length;
+      $('completedCount').textContent = completed.length;
 
-      // Progreso
       const total = items.length;
       const pct = total === 0 ? 0 : Math.round((completed.length / total) * 100);
-      progressBar.style.width = pct + '%';
-      progressPercent.textContent = pct + '%';
-      progressText.textContent = `${completed.length} de ${total} en el carrito`;
+      $('progressBar').style.width = pct + '%';
+      $('progressPercent').textContent = pct + '%';
+      $('progressText').textContent = completed.length + ' de ' + total + ' en el carrito';
 
-      // Renderizar pendientes
+      // Pendientes agrupados por sección, en el orden de los grupos
+      const pendingList = $('pendingList');
       pendingList.innerHTML = '';
-      if (pending.length === 0) {
-        emptyPendingState.classList.remove('hidden');
-      } else {
-        emptyPendingState.classList.add('hidden');
-        pending.forEach(item => {
-          const cat = CATEGORIES[item.category] || { label: 'Varios', icon: '📦' };
+      $('emptyPendingState').classList.toggle('hidden', pending.length !== 0);
+      getCategories(list).forEach(cat => {
+        const group = pending.filter(i => catIdOf(list, i.category) === cat.id)
+          .sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0));
+        if (!group.length) return;
+        const box = document.createElement('div');
+        box.className = 'flex flex-col gap-1.5';
+        box.innerHTML = `<div class="flex items-center gap-2 mt-1 px-1">
+            <span class="text-base">${escapeHtml(cat.icon)}</span>
+            <span class="group-name text-[11px] font-bold uppercase tracking-wider text-slate-600">${escapeHtml(cat.name)}</span>
+            <span class="text-[10px] font-bold bg-slate-200 text-slate-600 rounded-full px-1.5">${group.length}</span>
+            <span class="flex-1 h-px bg-slate-200"></span>
+          </div>`;
+        group.forEach(item => {
           const el = document.createElement('div');
           el.className = 'item-enter bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between gap-3';
-          el.innerHTML = `
-            <div class="flex items-center gap-3 min-w-0 flex-1">
-              <button onclick="toggleItem('${item.id}')" class="w-6 h-6 rounded-lg border-2 border-slate-300 hover:border-emerald-500 active:scale-90 flex items-center justify-center transition-all flex-shrink-0">
-              </button>
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-1.5 flex-wrap">
-                  <span class="text-xs">${cat.icon}</span>
-                  <span class="font-medium text-slate-800 text-sm truncate">${escapeHtml(item.name)}</span>
-                  ${item.qty ? `<span class="bg-slate-100 text-slate-600 font-semibold text-[10px] px-1.5 py-0.5 rounded-md">${escapeHtml(item.qty)}</span>` : ''}
-                </div>
-                <div class="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
-                  <span>Añadido por <strong class="text-slate-600">${escapeHtml(item.addedBy || 'Alguien')}</strong></span>
-                </div>
-              </div>
-            </div>
-            <button onclick="deleteItem('${item.id}')" class="text-slate-300 hover:text-rose-500 p-1.5 rounded-lg active:scale-95 transition-colors">
-              <i class="fa-regular fa-trash-can text-xs"></i>
-            </button>
-          `;
-          pendingList.appendChild(el);
+          el.innerHTML = itemRowHtml(item);
+          box.appendChild(el);
         });
-      }
+        pendingList.appendChild(box);
+      });
 
-      // Renderizar completados
+      const completedList = $('completedList');
       completedList.innerHTML = '';
-      if (completed.length === 0) {
-        completedSection.classList.add('hidden');
-      } else {
-        completedSection.classList.remove('hidden');
-        completed.forEach(item => {
-          const el = document.createElement('div');
-          el.className = 'bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/60 flex items-center justify-between gap-2 line-through text-slate-400';
-          el.innerHTML = `
-            <div class="flex items-center gap-2.5 min-w-0 flex-1">
-              <button onclick="toggleItem('${item.id}')" class="w-5 h-5 rounded-md bg-emerald-500 text-white flex items-center justify-center text-[10px] active:scale-90 flex-shrink-0">
-                <i class="fa-solid fa-check"></i>
-              </button>
-              <span class="text-xs truncate flex-1 text-slate-500">${escapeHtml(item.name)}</span>
-              ${item.qty ? `<span class="text-[10px] text-slate-400">${escapeHtml(item.qty)}</span>` : ''}
-            </div>
-            <button onclick="deleteItem('${item.id}')" class="text-slate-300 hover:text-rose-500 p-1 text-xs">
-              <i class="fa-regular fa-trash-can"></i>
+      $('completedSection').classList.toggle('hidden', completed.length === 0);
+      completed.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/60 flex items-center justify-between gap-2 text-slate-400';
+        el.innerHTML = `
+          <div class="flex items-center gap-2.5 min-w-0 flex-1">
+            <button data-action="toggle" data-id="${escapeHtml(item.id)}" class="w-5 h-5 rounded-md bg-emerald-500 text-white flex items-center justify-center text-[10px] active:scale-90 flex-shrink-0">
+              <i class="fa-solid fa-check"></i>
             </button>
-          `;
-          completedList.appendChild(el);
-        });
-      }
+            <span class="item-name text-xs truncate flex-1 text-slate-500 line-through">${escapeHtml(item.name)}</span>
+            ${item.completedBy ? `<span class="text-[10px] text-slate-400 flex-shrink-0">${escapeHtml(item.completedBy)}</span>` : ''}
+            ${item.qty ? `<span class="text-[10px] text-slate-400 flex-shrink-0">${escapeHtml(item.qty)}</span>` : ''}
+          </div>
+          <button data-action="delete" data-id="${escapeHtml(item.id)}" class="text-slate-300 hover:text-rose-500 p-1 text-xs" title="Borrar">
+            <i class="fa-regular fa-trash-can"></i>
+          </button>`;
+        completedList.appendChild(el);
+      });
+
+      updateSyncUI();
     }
 
-    // Renderizar botones rápidos
+    function stockLevel(p) {
+      const q = p.qty || 0;
+      if (q <= (p.min || 0)) return { color: 'rose', label: q === 0 ? 'Agotado' : 'En mínimo' };
+      if (q < ((p.min || 0) + (p.max || 0)) / 2) return { color: 'amber', label: 'Queda poco' };
+      return { color: 'emerald', label: 'Bien' };
+    }
+
+    function renderStock() {
+      const list = getCurrentList();
+      const all = readLocal('stock', list.id);
+      const q = norm($('stockSearch').value);
+      const low = all.filter(p => (p.qty || 0) <= (p.min || 0));
+      $('stockSummary').textContent = all.length ? all.length + ' productos · ' + low.length + ' en mínimo' : '';
+      const lowBtn = $('stockLowOnlyBtn');
+      lowBtn.className = 'text-[11px] font-semibold px-2.5 py-1 rounded-lg ' + (APP_STATE.stockLowOnly ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-600');
+
+      let shown = all.filter(p => !q || norm(p.name).includes(q));
+      if (APP_STATE.stockLowOnly) shown = shown.filter(p => (p.qty || 0) <= (p.min || 0));
+
+      $('stockEmpty').classList.toggle('hidden', all.length !== 0);
+      const c = $('stockContainer');
+      c.innerHTML = '';
+      if (all.length && !shown.length) {
+        c.innerHTML = '<p class="text-xs text-slate-400 text-center py-6">Nada coincide con la búsqueda.</p>';
+        return;
+      }
+      getCategories(list).forEach(cat => {
+        const group = shown.filter(p => catIdOf(list, p.category) === cat.id)
+          .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+        if (!group.length) return;
+        const box = document.createElement('div');
+        box.className = 'flex flex-col gap-1.5';
+        box.innerHTML = `<div class="flex items-center gap-2 mt-1 px-1">
+            <span>${escapeHtml(cat.icon)}</span>
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(cat.name)}</span>
+            <span class="flex-1 h-px bg-slate-200"></span></div>`;
+        group.forEach(p => {
+          const lv = stockLevel(p);
+          const pctBar = p.max ? Math.min(100, Math.round(((p.qty || 0) / p.max) * 100)) : 0;
+          const colors = {
+            rose: ['border-rose-300 bg-rose-50/60', 'text-rose-600', 'bg-rose-500'],
+            amber: ['border-amber-200 bg-white', 'text-amber-600', 'bg-amber-400'],
+            emerald: ['border-slate-200/80 bg-white', 'text-emerald-600', 'bg-emerald-500']
+          }[lv.color];
+          const row = document.createElement('div');
+          row.className = 'flex items-stretch gap-2';
+          row.innerHTML = `
+            <button type="button" data-stock-minus="${escapeHtml(p.id)}" class="stock-card flex-1 min-w-0 text-left p-3 rounded-2xl border shadow-xs active:scale-[0.98] transition-all ${colors[0]}">
+              <div class="flex items-center justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="stock-name font-semibold text-sm text-slate-800 truncate">${escapeHtml(p.name)}</p>
+                  <p class="text-[10px] text-slate-400">${lv.label} · mín ${p.min || 0} · máx ${p.max || 0}${hasPack(p) ? ' · ' + escapeHtml(formatInfo(p)) : ''}</p>
+                </div>
+                <div class="text-right flex-shrink-0">
+                  <span class="stock-qty text-2xl font-extrabold ${colors[1]}">${p.qty || 0}</span>
+                  <span class="block text-[9px] text-slate-400 -mt-1">${p.unit ? escapeHtml(unitOf(p, p.qty || 0)) + ' en casa' : 'en casa'}</span>
+                </div>
+              </div>
+              <div class="w-full h-1.5 bg-slate-200/70 rounded-full overflow-hidden mt-2">
+                <div class="h-full rounded-full ${colors[2]}" style="width:${pctBar}%"></div>
+              </div>
+            </button>
+            <button type="button" data-stock-plus="${escapeHtml(p.id)}" class="w-12 rounded-2xl bg-white border border-slate-200 text-emerald-600 text-lg font-bold active:scale-95 shadow-xs" title="Sumar uno">+</button>`;
+          box.appendChild(row);
+        });
+        c.appendChild(box);
+      });
+    }
+
+    function renderMinmax() {
+      const list = getCurrentList();
+      const all = readLocal('stock', list.id).slice().sort((a, b) => a.name.localeCompare(b.name, 'es'));
+      $('minmaxCount').textContent = all.length;
+      $('minmaxEmpty').classList.toggle('hidden', all.length !== 0);
+      $('minmaxContainer').innerHTML = all.map(p => {
+        const cat = catOf(list, p.category);
+        const lv = stockLevel(p);
+        const dot = { rose: 'bg-rose-500', amber: 'bg-amber-400', emerald: 'bg-emerald-500' }[lv.color];
+        return `<button type="button" data-stock-edit="${escapeHtml(p.id)}" class="w-full text-left bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs flex items-center gap-3 active:scale-[0.99]">
+            <span class="text-lg">${escapeHtml(cat.icon)}</span>
+            <div class="flex-1 min-w-0">
+              <p class="mm-name font-semibold text-sm text-slate-800 truncate">${escapeHtml(p.name)}</p>
+              <p class="text-[11px] text-slate-500">Mín <strong class="text-rose-600">${p.min || 0}</strong> · Máx <strong class="text-emerald-600">${p.max || 0}</strong>${p.unit ? ' ' + escapeHtml(unitOf(p, p.max || 0)) : ''} · Hay <strong>${p.qty || 0}</strong></p>
+              ${hasPack(p) ? '<p class="text-[10px] text-sky-700">🛒 Se compra en ' + escapeHtml(formatInfo(p)) + '</p>' : ''}
+            </div>
+            <span class="w-2.5 h-2.5 rounded-full ${dot}"></span>
+            <i class="fa-solid fa-pen text-[11px] text-slate-300"></i>
+          </button>`;
+      }).join('');
+    }
+
+    function renderBadges() {
+      const list = getCurrentList();
+      const pending = readLocalItems(list.id).filter(i => !i.completed).length;
+      const low = readLocal('stock', list.id).filter(p => (p.qty || 0) <= (p.min || 0)).length;
+      const bl = $('badgeList'), bs = $('badgeStock');
+      bl.textContent = pending; bl.classList.toggle('hidden', pending === 0);
+      bs.textContent = low; bs.classList.toggle('hidden', low === 0);
+    }
+
     function renderQuickItems() {
-      quickItemsContainer.innerHTML = '';
+      const c = $('quickItemsContainer');
+      c.innerHTML = '';
       QUICK_ITEMS.forEach(q => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'flex-shrink-0 bg-white border border-slate-200/90 hover:border-emerald-400 active:scale-95 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-xs transition-all text-slate-700';
-        btn.innerHTML = `<span>${q.icon}</span><span class="font-medium">${q.name}</span>`;
+        btn.innerHTML = `<span>${q.icon}</span><span class="font-medium">${escapeHtml(q.name)}</span>`;
+        btn.onclick = () => addItem(q.name, q.cat, '');
+        c.appendChild(btn);
+      });
+      const ideas = $('stockIdeas');
+      ideas.innerHTML = '';
+      STOCK_IDEAS.forEach(q => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'flex-shrink-0 bg-slate-50 border border-slate-200 active:scale-95 px-2 py-1 rounded-lg text-[11px] text-slate-600 flex items-center gap-1';
+        btn.innerHTML = `<span>${q.icon}</span><span>${escapeHtml(q.name)}</span>`;
         btn.onclick = () => {
-          addItem(q.name, q.cat, '');
+          $('sfName').value = q.name;
+          $('sfUnit').value = q.unit || '';
+          $('sfPackName').value = q.pack || '';
+          $('sfPackSize').value = q.size || 1;
+          const sel = $('sfCat');
+          if (getCategories(getCurrentList()).some(c => c.id === q.cat)) sel.value = q.cat;
+          $('sfMin').focus(); $('sfMin').select();
         };
-        quickItemsContainer.appendChild(btn);
+        ideas.appendChild(btn);
       });
     }
 
-    // Renderizar lista en el modal selector
     function renderListSheet() {
-      userListsContainer.innerHTML = '';
+      const c = $('userListsContainer');
+      c.innerHTML = '';
       APP_STATE.lists.forEach(l => {
         const isCurrent = l.id === APP_STATE.currentListId;
-        const count = (JSON.parse(localStorage.getItem(getItemsStorageKey(l.id)) || '[]')).filter(i => !i.completed).length;
-
+        const count = readLocalItems(l.id).filter(i => !i.completed).length;
         const row = document.createElement('div');
-        row.className = `flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer ${
-          isCurrent ? 'bg-emerald-50/70 border-emerald-500 ring-1 ring-emerald-500' : 'bg-slate-50 hover:bg-slate-100 border-slate-200'
-        }`;
+        row.className = 'flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer ' +
+          (isCurrent ? 'bg-emerald-50/70 border-emerald-500 ring-1 ring-emerald-500' : 'bg-slate-50 hover:bg-slate-100 border-slate-200');
         row.innerHTML = `
           <div class="flex items-center gap-3 min-w-0 flex-1">
-            <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-lg shadow-xs flex-shrink-0">
-              ${l.icon}
-            </div>
+            <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-lg shadow-xs flex-shrink-0">${escapeHtml(l.icon)}</div>
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
                 <span class="font-bold text-sm text-slate-800 truncate">${escapeHtml(l.name)}</span>
-                ${isCurrent ? '<span class="text-[10px] font-bold bg-emerald-600 text-white px-1.5 py-0.2 rounded-md">Activa</span>' : ''}
+                ${isCurrent ? '<span class="text-[10px] font-bold bg-emerald-600 text-white px-1.5 rounded-md">Activa</span>' : ''}
               </div>
               <div class="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
-                <span>${l.type === 'shared' ? '👥 Compartida' : '🔒 Solo Mía'}</span>
-                <span>•</span>
-                <span>${count} pendientes</span>
+                <span>${l.type === 'shared' ? '👥 Compartida' : '🔒 Solo Mía'}</span><span>•</span><span>${count} pendientes</span>
               </div>
             </div>
           </div>
-          <i class="fa-solid fa-chevron-right text-xs text-slate-300 ml-2"></i>
-        `;
-        row.onclick = () => {
-          switchList(l.id);
-          closeListSheet();
-        };
-        userListsContainer.appendChild(row);
+          <i class="fa-solid fa-chevron-right text-xs text-slate-300 ml-2"></i>`;
+        row.onclick = () => { switchList(l.id); closeListSheet(); };
+        c.appendChild(row);
       });
     }
 
-    // --- ACCIONES DE PRODUCTOS ---
-    function addItem(name, category, qty) {
-      if (!name || !name.trim()) return;
-      const items = getItems();
-      const newItem = {
-        id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-        name: name.trim(),
-        category: category || 'otros',
-        qty: qty ? qty.trim() : '',
-        completed: false,
-        addedBy: APP_STATE.userName,
-        addedAt: Date.now()
+    function memberEntries() {
+      return Object.entries(APP_STATE.members || {})
+        .map(([id, m]) => ({ id, name: (m && m.name) || 'Alguien', lastSeen: (m && m.lastSeen) || 0 }))
+        .sort((a, b) => b.lastSeen - a.lastSeen);
+    }
+
+    function renderMembers() {
+      const list = getCurrentList();
+      const entries = memberEntries();
+      $('membersBox').classList.toggle('hidden', !cloudOn(list) || entries.length === 0 || connectTab === 'join');
+      $('membersList').innerHTML = entries.map(m => `
+        <div class="flex items-center justify-between text-xs bg-slate-50 rounded-lg px-2.5 py-1.5">
+          <span class="flex items-center gap-1.5"><i class="fa-solid fa-mobile-screen text-slate-400"></i>
+            <strong class="text-slate-700">${escapeHtml(m.name)}</strong>${m.id === DEVICE_ID ? ' <span class="text-slate-400">(este móvil)</span>' : ''}</span>
+          <span class="text-[10px] text-slate-400">${m.id === DEVICE_ID ? '' : timeAgo(m.lastSeen)}</span>
+        </div>`).join('');
+      if (cloudOn(list) && entries.length === 1) {
+        $('membersList').insertAdjacentHTML('beforeend', '<p class="text-[10px] text-slate-400 mt-1">Todavía no se ha unido nadie más.</p>');
+      }
+    }
+
+    function renderBanner() {
+      const list = getCurrentList();
+      const dismissed = lsGet('nc_bannerDismissed', {});
+      const others = memberEntries().filter(m => m.id !== DEVICE_ID).length;
+      const show = list.type === 'shared' && !dismissed[list.code] && (Cloud.status === 'off' || (Cloud.ready && others === 0 && !Cloud.fromCache));
+      $('connectBanner').classList.toggle('hidden', !show);
+      $('connectBannerText').textContent = Cloud.status === 'off'
+        ? 'Primero activa la nube gratuita (Firebase) y luego comparte el código.'
+        : 'Comparte el código y veréis la misma lista y el mismo stock.';
+    }
+
+    function renderGroupsManager() {
+      const list = getCurrentList();
+      const cats = getCategories(list);
+      $('groupsManager').innerHTML = cats.map((c, i) => `
+        <div class="flex items-center gap-2 bg-slate-50 rounded-lg px-2 py-1.5">
+          <span class="text-base w-6 text-center">${escapeHtml(c.icon)}</span>
+          <span class="flex-1 text-xs font-medium text-slate-700 truncate">${escapeHtml(c.name)}</span>
+          <button type="button" data-grp-up="${escapeHtml(c.id)}" class="w-7 h-7 rounded-md bg-white border border-slate-200 text-slate-500 text-[10px] ${i === 0 ? 'opacity-30' : ''}" ${i === 0 ? 'disabled' : ''}><i class="fa-solid fa-arrow-up"></i></button>
+          <button type="button" data-grp-down="${escapeHtml(c.id)}" class="w-7 h-7 rounded-md bg-white border border-slate-200 text-slate-500 text-[10px] ${i === cats.length - 1 ? 'opacity-30' : ''}" ${i === cats.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-arrow-down"></i></button>
+          ${c.id === 'otros' ? '<span class="w-7"></span>' : `<button type="button" data-grp-del="${escapeHtml(c.id)}" class="w-7 h-7 rounded-md bg-white border border-slate-200 text-rose-400 text-[10px]"><i class="fa-regular fa-trash-can"></i></button>`}
+        </div>`).join('');
+    }
+
+    // =====================================================================
+    //  GRUPOS: crear, ordenar, borrar (compartido)
+    // =====================================================================
+    function setCategories(list, cats) {
+      list.categories = cats.map(c => ({ id: c.id, name: c.name, icon: c.icon }));
+      saveLists();
+      if (cloudOn(list)) listRef(list).set({ categories: list.categories }, { merge: true }).catch(onWriteErr);
+      renderAll();
+      renderGroupsManager();
+    }
+    function addCategory(name, icon) {
+      const list = getCurrentList();
+      name = (name || '').trim().slice(0, 30);
+      if (!name) return null;
+      const cats = getCategories(list).slice();
+      const exists = cats.find(c => norm(c.name) === norm(name));
+      if (exists) return exists.id;
+      const cat = { id: randomId('cat_'), name, icon: (icon || '🏷️').trim() || '🏷️' };
+      const otrosIdx = cats.findIndex(c => c.id === 'otros');
+      cats.splice(otrosIdx === -1 ? cats.length : otrosIdx, 0, cat);  // antes de "Otros"
+      setCategories(list, cats);
+      return cat.id;
+    }
+    function moveCategory(id, dir) {
+      const list = getCurrentList();
+      const cats = getCategories(list).slice();
+      const i = cats.findIndex(c => c.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= cats.length) return;
+      [cats[i], cats[j]] = [cats[j], cats[i]];
+      setCategories(list, cats);
+    }
+    function deleteCategory(id) {
+      if (id === 'otros') return;
+      const list = getCurrentList();
+      const cat = catOf(list, id);
+      if (!confirm('¿Borrar el grupo "' + cat.name + '"? Lo que tenga pasará a "Otros".')) return;
+      setCategories(list, getCategories(list).filter(c => c.id !== id));
+    }
+
+    $('groupsManager').addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.grpUp) moveCategory(b.dataset.grpUp, -1);
+      else if (b.dataset.grpDown) moveCategory(b.dataset.grpDown, 1);
+      else if (b.dataset.grpDel) deleteCategory(b.dataset.grpDel);
+    });
+
+    // Modal "nuevo grupo" (desde Ajustes o desde cualquier desplegable)
+    let groupTargetSelect = null;
+    const GROUP_EMOJIS = ['🐶', '👶', '💊', '🧀', '🍷', '🍫', '🥜', '🌱', '🧃', '🍪', '🎉', '🧻', '🏷️', '🛠️', '🌶️', '🥫'];
+    $('groupEmojiPicker').innerHTML = GROUP_EMOJIS.map(e => `<button type="button" data-emoji="${e}" class="w-8 h-8 rounded-lg bg-slate-50 border border-slate-200 text-base">${e}</button>`).join('');
+    $('groupEmojiPicker').addEventListener('click', e => {
+      const b = e.target.closest('[data-emoji]');
+      if (b) $('groupIcon').value = b.dataset.emoji;
+    });
+    function openGroupModal(targetSelect) {
+      groupTargetSelect = targetSelect || null;
+      $('groupName').value = '';
+      $('groupIcon').value = '🏷️';
+      openModal($('groupModal'));
+      setTimeout(() => $('groupName').focus(), 100);
+    }
+    $('closeGroupBtn').addEventListener('click', () => {
+      if (groupTargetSelect) groupTargetSelect.value = groupTargetSelect.dataset.prev || 'otros';
+      closeModal($('groupModal'));
+    });
+    $('groupForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const id = addCategory($('groupName').value, $('groupIcon').value);
+      closeModal($('groupModal'));
+      if (id && groupTargetSelect) { groupTargetSelect.value = id; groupTargetSelect.dataset.prev = id; }
+      if (id) toast('Grupo creado');
+    });
+    $('addGroupBtn').addEventListener('click', () => openGroupModal(null));
+    document.querySelectorAll('.cat-select').forEach(sel => {
+      sel.addEventListener('change', () => {
+        if (sel.value === '__new__') { openGroupModal(sel); return; }
+        sel.dataset.prev = sel.value;
+        if (sel.id === 'categorySelect') APP_STATE.catTouched = true;
+      });
+    });
+
+    // =====================================================================
+    //  ACCIONES DE LA LISTA
+    // =====================================================================
+    function addItem(name, category, qty, extra) {
+      name = (name || '').trim();
+      if (!name) return;
+      const list = getCurrentList();
+      const items = readLocalItems(list.id);
+      const dup = items.find(i => !i.completed && norm(i.name) === norm(name));
+      if (dup) { toast('"' + dup.name + '" ya está en la lista'); return; }
+
+      const item = {
+        id: randomId('item_'), name: name.slice(0, 80), category: category || 'otros',
+        qty: qty ? qty.trim() : '', completed: false, addedBy: APP_STATE.userName, addedAt: Date.now()
       };
-      items.unshift(newItem);
-      saveItems(items);
+      if (extra) Object.assign(item, extra);
+      items.push(item);
+      writeLocalItems(list.id, items);
+      renderAll();
+      if (cloudOn(list)) itemsRef(list).doc(item.id).set(forCloud(item)).catch(onWriteErr);
     }
 
     function toggleItem(id) {
-      const items = getItems();
+      const list = getCurrentList();
+      const items = readLocalItems(list.id);
       const item = items.find(i => i.id === id);
       if (!item) return;
-
       item.completed = !item.completed;
+      const patch = {};
+      let stockMsg = '';
+
       if (item.completed) {
         item.completedBy = APP_STATE.userName;
         item.completedAt = Date.now();
-        // Mini confeti discreto
-        confetti({
-          particleCount: 22,
-          spread: 45,
-          origin: { y: 0.8 },
-          colors: ['#10b981', '#34d399', '#6ee7b7']
-        });
+        if (typeof confetti === 'function') confetti({ particleCount: 22, spread: 45, origin: { y: 0.8 }, colors: ['#10b981', '#34d399', '#6ee7b7'] });
+      } else {
+        item.completedBy = null;
+        item.completedAt = null;
       }
-      saveItems(items);
+
+      // Si el producto se controla en el stock: al meterlo en el carrito se suma lo comprado
+      // (y al desmarcarlo se resta lo mismo que se sumó)
+      let stockProduct = null, stockApplied = 0;
+      const applied = appliedQty(item);
+      if (item.completed && !applied) {
+        stockProduct = findStockFor(list, item);
+        if (stockProduct) {
+          const n = plannedUnits(item, stockProduct);
+          stockApplied = n;
+          applyStockDelta(list, stockProduct.id, n);
+          item.stockApplied = n;
+          item.stockAppliedTo = stockProduct.id;
+          patch.stockApplied = n;
+          patch.stockAppliedTo = stockProduct.id;
+        }
+      } else if (!item.completed && applied) {
+        const pid = item.stockAppliedTo || item.stockId;
+        const p = applyStockDelta(list, pid, -applied);
+        item.stockApplied = 0;
+        patch.stockApplied = 0;
+        if (p) stockMsg = 'Stock de ' + p.name + ': −' + unitsText(p, applied) + ' (ahora hay ' + p.qty + ')';
+      }
+
+      writeLocalItems(list.id, items);
+      renderAll();
+      if (stockProduct) {
+        const now = readLocal('stock', list.id).find(x => x.id === stockProduct.id);
+        const packs = hasPack(stockProduct) && stockApplied % packSizeOf(stockProduct) === 0 ? stockApplied / packSizeOf(stockProduct) : 0;
+        toast('📦 ' + stockProduct.name + ': +' + unitsText(stockProduct, stockApplied) + (packs ? ' (' + packs + ' ' + packNameOf(stockProduct, packs) + ')' : '') +
+          ' al stock · ahora hay ' + (now ? now.qty : '?'), 6000,
+          'Cambiar', () => openBuyQty(id));
+      } else if (stockMsg) toast(stockMsg);
+      if (cloudOn(list)) {
+        Object.assign(patch, { completed: item.completed, completedBy: item.completedBy, completedAt: item.completedAt });
+        itemsRef(list).doc(id).update(patch).catch(onWriteErr);
+      }
+    }
+
+    // Cantidad ya sumada al stock por este producto (compatible con versiones anteriores)
+    function appliedQty(item) {
+      if (typeof item.stockApplied === 'number') return item.stockApplied;
+      if (item.stockApplied === true) return Math.max(1, item.stockAdd || 1);
+      return 0;
+    }
+    // Unidades que se suman al comprar: las que calculó el mínimo, o lo apuntado.
+    // Si el producto se compra en cajas, un número suelto ("2") son cajas;
+    // si se escribe la unidad ("6 latas") son unidades. Sin número: 1 caja (o 1 unidad).
+    function plannedUnits(item, p) {
+      if (item.stockAdd) return Math.max(1, item.stockAdd);
+      const txt = norm(item.qty);
+      const m = txt.match(/\d+/);
+      const n = m ? Math.max(1, Math.min(999, parseInt(m[0], 10) || 1)) : 1;
+      if (p && hasPack(p)) {
+        const saysUnit = p.unit && txt.includes(norm(p.unit));
+        const saysPack = p.packName && txt.includes(norm(p.packName));
+        return (saysUnit && !saysPack) ? n : n * packSizeOf(p);
+      }
+      return n;
+    }
+    // ¿Qué producto del stock corresponde a este artículo? (por enlace o por nombre)
+    function findStockFor(list, item) {
+      const stock = readLocal('stock', list.id);
+      return stock.find(s => s.id === item.stockId) ||
+        stock.find(s => s.id === item.stockAppliedTo) ||
+        stock.find(s => norm(s.name) === norm(item.name)) || null;
+    }
+    function applyStockDelta(list, stockId, delta) {
+      if (!stockId || !delta) return null;
+      const stock = readLocal('stock', list.id);
+      const p = stock.find(s => s.id === stockId);
+      if (!p) return null;
+      p.qty = Math.max(0, (p.qty || 0) + delta);
+      p.updatedBy = APP_STATE.userName;
+      p.updatedAt = Date.now();
+      writeLocal('stock', list.id, stock);
+      if (cloudOn(list)) cref(list, 'stock').doc(p.id).update({ qty: inc(delta), updatedBy: p.updatedBy, updatedAt: p.updatedAt }).catch(onWriteErr);
+      return p;
+    }
+
+    // Ventana "¿Cuántas has comprado?"
+    let buyQtyItemId = null;
+    let buyQtyMode = 'units';
+    function openBuyQty(itemId) {
+      const list = getCurrentList();
+      const item = readLocalItems(list.id).find(i => i.id === itemId);
+      if (!item || !item.completed) return;
+      const p = findStockFor(list, item);
+      buyQtyItemId = itemId;
+      $('buyQtyName').textContent = item.name;
+      const applied = appliedQty(item) || plannedUnits(item, p);
+      if (p && hasPack(p)) {
+        buyQtyMode = 'packs';
+        const size = item.stockPackSize || packSizeOf(p);
+        $('buyQtyTitle').textContent = '¿Cuántas ' + packNameOf(p, 2) + ' has comprado de';
+        $('buyQtyInput').value = Math.max(0, Math.round(applied / size));
+        $('buyPackSize').value = size;
+        $('buyPackName').textContent = packNameOf(p, 1);
+        $('buyUnitName').textContent = unitOf(p, 2);
+        $('buyPackRow').classList.remove('hidden');
+      } else {
+        buyQtyMode = 'units';
+        $('buyQtyTitle').textContent = p && p.unit ? '¿Cuántas ' + unitOf(p, 2) + ' has comprado de' : '¿Cuántas has comprado de';
+        $('buyQtyInput').value = applied;
+        $('buyPackRow').classList.add('hidden');
+      }
+      updateBuyTotal();
+      openModal($('buyQtyModal'));
+    }
+    function buyQtyUnits() {
+      const n = toInt($('buyQtyInput').value, 0);
+      return buyQtyMode === 'packs' ? n * Math.max(1, toInt($('buyPackSize').value, 1)) : n;
+    }
+    function updateBuyTotal() {
+      const list = getCurrentList();
+      const item = readLocalItems(list.id).find(i => i.id === buyQtyItemId);
+      const p = item ? findStockFor(list, item) : null;
+      const u = buyQtyUnits();
+      $('buyTotal').textContent = 'Se sumarán ' + unitsText(p || {}, u) + ' al stock de casa.';
+    }
+    function saveBuyQty() {
+      const list = getCurrentList();
+      const items = readLocalItems(list.id);
+      const item = items.find(i => i.id === buyQtyItemId);
+      closeModal($('buyQtyModal'));
+      if (!item || !item.completed) return;
+      const p0 = findStockFor(list, item);
+      const units = buyQtyUnits();
+      const old = appliedQty(item);
+      const pid = item.stockAppliedTo || item.stockId || (p0 && p0.id);
+      const p = applyStockDelta(list, pid, units - old);
+      item.stockApplied = units;
+      item.stockAppliedTo = pid;
+      const patch = { stockApplied: units, stockAppliedTo: pid };
+      if (buyQtyMode === 'packs') {
+        const packs = toInt($('buyQtyInput').value, 0);
+        const size = Math.max(1, toInt($('buyPackSize').value, 1));
+        item.stockPacks = packs; item.stockPackSize = size;
+        patch.stockPacks = packs; patch.stockPackSize = size;
+        if (packs) item.qty = packsText(p0, packs, size);
+      } else if (units) {
+        item.qty = p0 && p0.unit ? unitsText(p0, units) : 'x' + units;
+      }
+      patch.qty = item.qty;
+      writeLocalItems(list.id, items);
+      renderAll();
+      if (cloudOn(list)) itemsRef(list).doc(item.id).update(patch).catch(onWriteErr);
+      const now = readLocal('stock', list.id).find(x => x.id === pid);
+      toast('📦 ' + item.name + ': has comprado ' + item.qty + ' · ahora hay ' + (now ? now.qty : (p ? p.qty : '?')) + ' en casa');
     }
 
     function deleteItem(id) {
-      let items = getItems();
-      items = items.filter(i => i.id !== id);
-      saveItems(items);
+      const list = getCurrentList();
+      writeLocalItems(list.id, readLocalItems(list.id).filter(i => i.id !== id));
+      renderAll();
+      if (cloudOn(list)) itemsRef(list).doc(id).delete().catch(onWriteErr);
+    }
+
+    function clearCompleted() {
+      const list = getCurrentList();
+      const items = readLocalItems(list.id);
+      const done = items.filter(i => i.completed);
+      writeLocalItems(list.id, items.filter(i => !i.completed));
+      renderAll();
+      if (cloudOn(list) && done.length) {
+        const batch = Cloud.db.batch();
+        done.forEach(i => batch.delete(itemsRef(list).doc(i.id)));
+        batch.commit().catch(onWriteErr);
+      }
     }
 
     function switchList(listId) {
       APP_STATE.currentListId = listId;
-      localStorage.setItem('nc_currentListId', listId);
-      renderApp();
+      lsSet('nc_currentListId_v4', listId);
+      Cloud.pending = { items: false, stock: false };
+      Cloud.fromCache = true;
+      $('stockSearch').value = '';
+      renderAll();
       setupCloudListener();
     }
 
-    // --- MANEJO DE MODALES ---
+    function onListClick(e) {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const id = btn.dataset.id;
+      if (btn.dataset.action === 'toggle') toggleItem(id);
+      else if (btn.dataset.action === 'delete') deleteItem(id);
+    }
+    $('pendingList').addEventListener('click', onListClick);
+    $('completedList').addEventListener('click', onListClick);
+
+    // =====================================================================
+    //  STOCK
+    // =====================================================================
+    // Mantiene la lista de la compra al día según el stock de un producto:
+    //  - si está en el mínimo (o por debajo) y no está pendiente → se añade (para llegar al máximo)
+    //  - si ya está pendiente → se actualiza la cantidad a comprar
+    //  - si vuelve a estar por encima del mínimo y seguía pendiente → se quita
+    function syncStockToList(list, p) {
+      const items = readLocalItems(list.id);
+      const itemId = 'stock_' + p.id;
+      const existing = items.find(i => i.id === itemId);
+      const plan = buyPlan(p);
+      const below = (p.qty || 0) <= (p.min || 0);
+      const write = (newItems) => writeLocalItems(list.id, newItems);
+
+      if (below) {
+        if (existing && !existing.completed) {
+          const patch = {};
+          if (existing.stockAdd !== plan.units || existing.qty !== plan.text) {
+            patch.stockAdd = plan.units; patch.qty = plan.text; patch.stockPacks = plan.packs; patch.stockPackSize = plan.size;
+          }
+          if (existing.name !== p.name) patch.name = p.name;
+          if (existing.category !== p.category) patch.category = p.category;
+          if (!Object.keys(patch).length) return null;
+          Object.assign(existing, patch);
+          write(items);
+          if (cloudOn(list)) itemsRef(list).doc(itemId).update(patch).catch(onWriteErr);
+          return 'updated';
+        }
+        // ¿Ya lo apuntó alguien a mano? Entonces no se duplica
+        if (items.some(i => !i.completed && i.id !== itemId && norm(i.name) === norm(p.name))) return null;
+        const item = {
+          id: itemId, name: p.name, category: p.category || 'otros', qty: plan.text,
+          stockId: p.id, stockAdd: plan.units, stockPacks: plan.packs, stockPackSize: plan.size, stockApplied: 0, completed: false,
+          addedBy: APP_STATE.userName, addedAt: Date.now()
+        };
+        write(items.filter(i => i.id !== itemId).concat([item]));
+        if (cloudOn(list)) itemsRef(list).doc(itemId).set(forCloud(item)).catch(onWriteErr);
+        return 'added';
+      }
+      if (existing && !existing.completed) {
+        write(items.filter(i => i.id !== itemId));
+        if (cloudOn(list)) itemsRef(list).doc(itemId).delete().catch(onWriteErr);
+        return 'removed';
+      }
+      return null;
+    }
+
+    function changeStock(id, delta, opts) {
+      opts = opts || {};
+      const list = getCurrentList();
+      const stock = readLocal('stock', list.id);
+      const p = stock.find(s => s.id === id);
+      if (!p) return null;
+      if (delta < 0 && (p.qty || 0) <= 0) { toast('No queda ' + p.name + ' en casa (0)'); return null; }
+      p.qty = Math.max(0, (p.qty || 0) + delta);
+      p.updatedBy = APP_STATE.userName;
+      p.updatedAt = Date.now();
+      writeLocal('stock', list.id, stock);
+      if (cloudOn(list)) cref(list, 'stock').doc(id).update({ qty: inc(delta), updatedBy: p.updatedBy, updatedAt: p.updatedAt }).catch(onWriteErr);
+      const res = syncStockToList(list, p);
+      renderAll();
+      if (!opts.silent) {
+        let msg = p.name + ': ' + (delta < 0 ? 'quedan ' : 'hay ') + unitsText(p, p.qty);
+        if (res === 'added') msg += ' · añadido a la lista 🛒';
+        else if (res === 'removed') msg += ' · quitado de la lista';
+        toast(msg, 4500, 'Deshacer', () => { changeStock(id, -delta, { silent: true }); toast('Deshecho'); });
+      }
+      return res;
+    }
+
+    function stockFormValues(prefix) {
+      return {
+        name: $(prefix + 'Name').value.trim().slice(0, 60),
+        category: $(prefix + 'Cat').value === '__new__' ? 'otros' : $(prefix + 'Cat').value,
+        min: toInt($(prefix + 'Min').value, 0),
+        max: toInt($(prefix + 'Max').value, 0),
+        qty: toInt($(prefix + 'Qty').value, 0),
+        unit: $(prefix + 'Unit').value.trim().toLowerCase().slice(0, 15),
+        packName: $(prefix + 'PackName').value.trim().toLowerCase().slice(0, 15),
+        packSize: Math.max(1, toInt($(prefix + 'PackSize').value, 1))
+      };
+    }
+    function validateStock(v, list, ignoreId) {
+      if (!v.name) return 'Escribe el nombre del producto.';
+      if (v.max < 1) return 'El máximo tiene que ser al menos 1.';
+      if (v.max < v.min) return 'El máximo no puede ser menor que el mínimo.';
+      if (v.packSize > 1 && !v.packName) v.packName = 'pack';
+      const dup = readLocal('stock', list.id).find(s => s.id !== ignoreId && norm(s.name) === norm(v.name));
+      if (dup) return 'Ya controlas "' + dup.name + '". Tócalo en la lista de abajo para editarlo.';
+      return '';
+    }
+
+    function saveStockProduct(p, isNew) {
+      const list = getCurrentList();
+      const stock = readLocal('stock', list.id).filter(s => s.id !== p.id);
+      stock.push(p);
+      writeLocal('stock', list.id, stock);
+      if (cloudOn(list)) cref(list, 'stock').doc(p.id).set(forCloud(p)).catch(onWriteErr);
+      const res = syncStockToList(list, p);
+      renderAll();
+      let msg = isNew ? p.name + ' guardado' : 'Cambios guardados';
+      if (res === 'added') msg += ' · está en el mínimo, añadido a la lista 🛒';
+      else if (res === 'removed') msg += ' · ya no hace falta, quitado de la lista';
+      toast(msg, 4000);
+    }
+
+    $('stockForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const list = getCurrentList();
+      const v = stockFormValues('sf');
+      const err = validateStock(v, list, null);
+      $('sfError').textContent = err;
+      $('sfError').classList.toggle('hidden', !err);
+      if (err) return;
+      saveStockProduct(Object.assign({ id: randomId('stk_'), createdAt: Date.now(), updatedBy: APP_STATE.userName, updatedAt: Date.now() }, v), true);
+      $('sfName').value = '';
+      $('sfQty').value = '0';
+      $('sfUnit').value = ''; $('sfPackName').value = ''; $('sfPackSize').value = '1';
+      $('sfName').focus();
+    });
+    $('sfName').addEventListener('input', () => {
+      const txt = $('sfName').value.trim();
+      $('sfCat').value = txt ? (guessCategory(txt, getCurrentList()) || 'otros') : 'otros';
+    });
+
+    // Editar
+    let editingStockId = null;
+    function openStockEdit(id) {
+      const p = readLocal('stock', getCurrentList().id).find(s => s.id === id);
+      if (!p) return;
+      editingStockId = id;
+      renderCategorySelects();
+      $('seName').value = p.name;
+      $('seCat').value = catIdOf(getCurrentList(), p.category);
+      $('seCat').dataset.prev = $('seCat').value;
+      $('seMin').value = p.min || 0;
+      $('seMax').value = p.max || 0;
+      $('seQty').value = p.qty || 0;
+      $('seUnit').value = p.unit || '';
+      $('sePackName').value = p.packName || '';
+      $('sePackSize').value = packSizeOf(p);
+      $('seError').classList.add('hidden');
+      openModal($('stockEditModal'));
+    }
+    $('minmaxContainer').addEventListener('click', e => {
+      const b = e.target.closest('[data-stock-edit]');
+      if (b) openStockEdit(b.dataset.stockEdit);
+    });
+    $('closeStockEditBtn').addEventListener('click', () => closeModal($('stockEditModal')));
+    $('stockEditForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const list = getCurrentList();
+      const old = readLocal('stock', list.id).find(s => s.id === editingStockId);
+      if (!old) { closeModal($('stockEditModal')); return; }
+      const v = stockFormValues('se');
+      const err = validateStock(v, list, editingStockId);
+      $('seError').textContent = err;
+      $('seError').classList.toggle('hidden', !err);
+      if (err) return;
+      closeModal($('stockEditModal'));
+      saveStockProduct(Object.assign({}, old, v, { updatedBy: APP_STATE.userName, updatedAt: Date.now() }), false);
+    });
+    $('seDeleteBtn').addEventListener('click', () => {
+      const list = getCurrentList();
+      const p = readLocal('stock', list.id).find(s => s.id === editingStockId);
+      if (!p || !confirm('¿Dejar de controlar "' + p.name + '"?')) return;
+      writeLocal('stock', list.id, readLocal('stock', list.id).filter(s => s.id !== p.id));
+      if (cloudOn(list)) cref(list, 'stock').doc(p.id).delete().catch(onWriteErr);
+      // Si estaba pendiente en la lista por el mínimo, se quita también
+      const auto = readLocalItems(list.id).find(i => i.id === 'stock_' + p.id && !i.completed);
+      if (auto) deleteItem(auto.id);
+      closeModal($('stockEditModal'));
+      renderAll();
+      toast(p.name + ' ya no se controla');
+    });
+
+    // Tocar en Stock: −1 ; botón +: +1
+    $('stockContainer').addEventListener('click', e => {
+      const minus = e.target.closest('[data-stock-minus]');
+      const plus = e.target.closest('[data-stock-plus]');
+      if (minus) {
+        minus.classList.remove('tap-flash'); void minus.offsetWidth; minus.classList.add('tap-flash');
+        changeStock(minus.dataset.stockMinus, -1);
+      } else if (plus) {
+        changeStock(plus.dataset.stockPlus, +1);
+      }
+    });
+    $('stockSearch').addEventListener('input', renderStock);
+    $('buyQtyMinus').addEventListener('click', () => { $('buyQtyInput').value = Math.max(0, toInt($('buyQtyInput').value, 0) - 1); updateBuyTotal(); });
+    $('buyQtyPlus').addEventListener('click', () => { $('buyQtyInput').value = Math.min(999, toInt($('buyQtyInput').value, 0) + 1); updateBuyTotal(); });
+    $('buyQtyInput').addEventListener('input', updateBuyTotal);
+    $('buyPackSize').addEventListener('input', updateBuyTotal);
+    $('buyQtyCancel').addEventListener('click', () => closeModal($('buyQtyModal')));
+    $('buyQtySave').addEventListener('click', saveBuyQty);
+    $('stockLowOnlyBtn').addEventListener('click', () => { APP_STATE.stockLowOnly = !APP_STATE.stockLowOnly; renderStock(); });
+
+    // =====================================================================
+    //  UNIRSE A UNA LISTA / INVITAR
+    // =====================================================================
+    async function joinList(rawCode) {
+      const code = normalizeCode(rawCode);
+      if (!isValidCode(code)) return { ok: false, msg: 'Ese código no parece correcto. Debe ser algo como K7QP-3XMA.' };
+
+      const existing = APP_STATE.lists.find(l => l.code === code);
+      if (existing) { switchList(existing.id); return { ok: true, msg: 'Ya tenías esta lista: ' + existing.name }; }
+
+      if (Cloud.status === 'off') return { ok: false, msg: 'Primero activa la nube en Ajustes (claves de Firebase). Sin eso los móviles no pueden verse.' };
+      if (!Cloud.ready) return { ok: false, msg: 'Todavía conectando con la nube… espera unos segundos y vuelve a intentarlo.' };
+
+      let name = 'Lista compartida', icon = '🛒', categories = null, offline = false;
+      try {
+        const doc = await Cloud.db.collection('listas').doc(code).get({ source: 'server' });
+        if (!doc.exists) {
+          return { ok: false, msg: 'No encuentro ninguna lista con ese código. Revisa que esté bien escrito y que el otro móvil haya abierto la app con internet al menos una vez.' };
+        }
+        const d = doc.data() || {};
+        name = d.name || name;
+        icon = d.icon || icon;
+        if (Array.isArray(d.categories)) categories = d.categories;
+      } catch (e) {
+        if (/unavailable|network|offline/i.test((e && (e.code || e.message)) || '')) offline = true;
+        else return { ok: false, msg: friendlyError(e) };
+      }
+
+      const list = { id: randomId('list_joined_'), name, icon, type: 'shared', code, isOwner: false, synced: { items: true, stock: true }, createdAt: Date.now() };
+      if (categories) list.categories = categories;
+      APP_STATE.lists.push(list);
+      saveLists();
+      switchList(list.id);
+      return { ok: true, msg: offline ? 'Sin conexión: la lista se cargará cuando vuelva internet.' : '¡Conectado! Ya compartís "' + name + '" (lista y stock).' };
+    }
+
+    function inviteText(list) {
+      return '🛒 Únete a nuestra lista de la compra "' + list.name + '" en la app Nuestra Compra.\n\n' +
+        '1️⃣ Abre la app y pulsa el botón de conectar (👤+)\n' +
+        '2️⃣ Elige "Tengo un código"\n' +
+        '3️⃣ Escribe este código: *' + list.code + '*';
+    }
+
+    function makeCurrentShared() {
+      const list = getCurrentList();
+      if (list.type === 'shared') return;
+      list.type = 'shared';
+      list.code = newShareCode();
+      list.isOwner = true;
+      list.synced = {};
+      saveLists();
+      if (Cloud.ready && list.categories) listRef(list).set({ categories: list.categories }, { merge: true }).catch(onWriteErr);
+      switchList(list.id);
+      toast('Ahora "' + list.name + '" es compartida');
+    }
+
+    let connectTab = 'invite';
+    function setConnectTab(tab) {
+      connectTab = tab;
+      $('tabInvite').className = 'py-2 rounded-lg ' + (tab === 'invite' ? 'bg-white shadow-xs text-slate-800' : 'text-slate-500');
+      $('tabJoin').className = 'py-2 rounded-lg ' + (tab === 'join' ? 'bg-white shadow-xs text-slate-800' : 'text-slate-500');
+      $('panelInvite').classList.toggle('hidden', tab !== 'invite');
+      $('panelJoin').classList.toggle('hidden', tab !== 'join');
+      $('joinError').classList.add('hidden');
+      renderMembers();
+      if (tab === 'join') setTimeout(() => $('joinCodeInput').focus(), 50);
+    }
+
+    function renderConnectModal() {
+      const list = getCurrentList();
+      const notice = $('cloudOffNotice');
+      if (Cloud.status === 'off') {
+        notice.classList.remove('hidden');
+        $('cloudOffNoticeText').textContent = 'Para conectar dos móviles hay que poner las claves de Firebase (gratis, se hace una vez). Mira el README o pégalas en Ajustes.';
+      } else if (Cloud.status === 'error') {
+        notice.classList.remove('hidden');
+        $('cloudOffNoticeText').textContent = Cloud.error;
+      } else {
+        notice.classList.add('hidden');
+      }
+      const personal = list.type !== 'shared';
+      $('invitePersonalNotice').classList.toggle('hidden', !personal);
+      $('inviteCodeBox').classList.toggle('hidden', personal);
+      $('inviteCode').textContent = list.code;
+      $('inviteListName').textContent = list.name;
+      renderMembers();
+    }
+
+    function openConnect(tab) {
+      renderConnectModal();
+      setConnectTab(tab || 'invite');
+      openModal($('connectModal'));
+    }
+
+    // =====================================================================
+    //  MODALES
+    // =====================================================================
     function openListSheet() {
       renderListSheet();
-      listSheetModal.classList.remove('opacity-0', 'pointer-events-none');
-      listSheetContent.classList.remove('translate-y-full');
+      $('listSheetModal').classList.remove('opacity-0', 'pointer-events-none');
+      $('listSheetContent').classList.remove('translate-y-full');
     }
-
     function closeListSheet() {
-      listSheetContent.classList.add('translate-y-full');
-      listSheetModal.classList.add('opacity-0');
-      setTimeout(() => {
-        listSheetModal.classList.add('pointer-events-none');
-      }, 250);
+      $('listSheetContent').classList.add('translate-y-full');
+      $('listSheetModal').classList.add('opacity-0');
+      setTimeout(() => $('listSheetModal').classList.add('pointer-events-none'), 250);
     }
-
     function openModal(modal) {
       modal.classList.remove('opacity-0', 'pointer-events-none');
-      modal.querySelector('div').classList.remove('scale-95');
-      modal.querySelector('div').classList.add('scale-100');
+      const inner = modal.querySelector('div');
+      inner.classList.remove('scale-95');
+      inner.classList.add('scale-100');
     }
-
     function closeModal(modal) {
-      modal.querySelector('div').classList.remove('scale-100');
-      modal.querySelector('div').classList.add('scale-95');
+      const inner = modal.querySelector('div');
+      inner.classList.remove('scale-100');
+      inner.classList.add('scale-95');
       modal.classList.add('opacity-0');
-      setTimeout(() => {
-        modal.classList.add('pointer-events-none');
-      }, 200);
+      setTimeout(() => modal.classList.add('pointer-events-none'), 200);
     }
-
-    // --- EVENT LISTENERS ---
-    listSelectorBtn.addEventListener('click', openListSheet);
-    closeListSheetBtn.addEventListener('click', closeListSheet);
-    listSheetModal.addEventListener('click', (e) => {
-      if (e.target === listSheetModal) closeListSheet();
+    ['createListModal', 'settingsModal', 'connectModal', 'stockEditModal'].forEach(id => {
+      $(id).addEventListener('click', e => { if (e.target.id === id) closeModal($(id)); });
     });
 
-    openCreateListBtn.addEventListener('click', () => {
-      closeListSheet();
-      setTimeout(() => openModal(createListModal), 150);
+    // =====================================================================
+    //  EVENTOS
+    // =====================================================================
+    $('listSelectorBtn').addEventListener('click', openListSheet);
+    $('closeListSheetBtn').addEventListener('click', closeListSheet);
+    $('listSheetModal').addEventListener('click', e => { if (e.target.id === 'listSheetModal') closeListSheet(); });
+
+    $('openCreateListBtn').addEventListener('click', () => { closeListSheet(); setTimeout(() => openModal($('createListModal')), 150); });
+    $('closeCreateListBtn').addEventListener('click', () => closeModal($('createListModal')));
+    $('openJoinCodeBtn').addEventListener('click', () => { closeListSheet(); setTimeout(() => openConnect('join'), 150); });
+
+    $('connectBtn').addEventListener('click', () => openConnect('invite'));
+    $('connectBanner').addEventListener('click', e => {
+      if (e.target.closest('#dismissBannerBtn')) {
+        const d = lsGet('nc_bannerDismissed', {});
+        d[getCurrentList().code] = true;
+        lsSet('nc_bannerDismissed', d);
+        renderBanner();
+        return;
+      }
+      openConnect('invite');
     });
-
-    closeCreateListBtn.addEventListener('click', () => closeModal(createListModal));
-
-    openJoinCodeBtn.addEventListener('click', () => {
-      closeListSheet();
-      const code = prompt('Introduce el código de la lista compartida (ej: CASA-1234):');
-      if (code && code.trim()) {
-        const clean = code.trim().toUpperCase();
-        const existing = APP_STATE.lists.find(l => l.code === clean);
-        if (existing) {
-          switchList(existing.id);
-          alert('¡Te has unido a la lista: ' + existing.name + '!');
-        } else {
-          // Crear referencia a la lista unida
-          const joinedList = {
-            id: 'list_joined_' + Date.now(),
-            name: 'Lista Compartida (' + clean + ')',
-            icon: '🛒',
-            type: 'shared',
-            code: clean,
-            createdAt: Date.now()
-          };
-          APP_STATE.lists.push(joinedList);
-          saveLists();
-          switchList(joinedList.id);
-          alert('¡Conectado con éxito a la lista ' + clean + '!');
-        }
+    $('closeConnectBtn').addEventListener('click', () => closeModal($('connectModal')));
+    $('tabInvite').addEventListener('click', () => setConnectTab('invite'));
+    $('tabJoin').addEventListener('click', () => setConnectTab('join'));
+    $('goToSettingsBtn').addEventListener('click', () => {
+      closeModal($('connectModal'));
+      setTimeout(() => { openSettings(); $('fbConfigDetails').open = true; }, 200);
+    });
+    $('makeSharedBtn').addEventListener('click', makeCurrentShared);
+    $('inviteWhatsappBtn').addEventListener('click', () => openWhatsapp(inviteText(getCurrentList())));
+    $('inviteCopyBtn').addEventListener('click', () => {
+      copyText(getCurrentList().code).then(ok => toast(ok ? 'Código copiado' : 'No se pudo copiar'));
+    });
+    $('joinForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const btn = $('joinSubmitBtn');
+      btn.disabled = true;
+      btn.textContent = 'Buscando la lista…';
+      const res = await joinList($('joinCodeInput').value);
+      btn.disabled = false;
+      btn.textContent = 'Unirme a la lista';
+      if (res.ok) {
+        $('joinCodeInput').value = '';
+        closeModal($('connectModal'));
+        toast(res.msg, 3500);
+      } else {
+        $('joinError').textContent = res.msg;
+        $('joinError').classList.remove('hidden');
       }
     });
 
-    // Selector de icono en crear lista
+    const iconButtons = document.querySelectorAll('.icon-opt');
     iconButtons.forEach(btn => {
       btn.addEventListener('click', () => {
-        iconButtons.forEach(b => {
-          b.className = 'icon-opt p-2 rounded-xl text-lg bg-slate-50 border border-slate-200 hover:bg-slate-100 text-center';
-        });
+        iconButtons.forEach(b => { b.className = 'icon-opt p-2 rounded-xl text-lg bg-slate-50 border border-slate-200 hover:bg-slate-100 text-center'; });
         btn.className = 'icon-opt p-2 rounded-xl text-lg bg-emerald-100 border-2 border-emerald-500 text-center';
         APP_STATE.selectedIcon = btn.dataset.icon;
       });
     });
 
-    // Selector tipo de lista en crear
-    const typeRadios = document.querySelectorAll('input[name="listType"]');
-    typeRadios.forEach(radio => {
+    document.querySelectorAll('input[name="listType"]').forEach(radio => {
       radio.addEventListener('change', () => {
-        const sharedLabel = document.getElementById('typeSharedLabel');
-        const personalLabel = document.getElementById('typePersonalLabel');
-        if (radio.value === 'shared') {
-          sharedLabel.className = 'flex flex-col p-2.5 border-2 border-emerald-500 bg-emerald-50/40 rounded-xl cursor-pointer list-type-radio';
-          personalLabel.className = 'flex flex-col p-2.5 border border-slate-200 bg-slate-50 rounded-xl cursor-pointer list-type-radio';
-        } else {
-          personalLabel.className = 'flex flex-col p-2.5 border-2 border-emerald-500 bg-emerald-50/40 rounded-xl cursor-pointer list-type-radio';
-          sharedLabel.className = 'flex flex-col p-2.5 border border-slate-200 bg-slate-50 rounded-xl cursor-pointer list-type-radio';
-        }
+        const on = 'flex flex-col p-2.5 border-2 border-emerald-500 bg-emerald-50/40 rounded-xl cursor-pointer';
+        const off = 'flex flex-col p-2.5 border border-slate-200 bg-slate-50 rounded-xl cursor-pointer';
+        $('typeSharedLabel').className = radio.value === 'shared' ? on : off;
+        $('typePersonalLabel').className = radio.value === 'shared' ? off : on;
       });
     });
 
-    // Formulario Crear Lista
-    createListForm.addEventListener('submit', (e) => {
+    $('createListForm').addEventListener('submit', e => {
       e.preventDefault();
-      const name = newListNameInput.value.trim();
+      const name = $('newListName').value.trim();
       if (!name) return;
-
       const type = document.querySelector('input[name="listType"]:checked').value;
-      const newList = {
-        id: 'list_' + Date.now(),
-        name: name,
-        icon: APP_STATE.selectedIcon || '🛒',
-        type: type,
-        code: type === 'shared' ? 'CASA-' + Math.floor(1000 + Math.random() * 9000) : 'SOLO-' + Math.floor(100 + Math.random() * 900),
-        createdAt: Date.now()
+      const list = {
+        id: randomId('list_'), name, icon: APP_STATE.selectedIcon || '🛒', type,
+        code: type === 'shared' ? newShareCode() : 'SOLO-' + randomId(''),
+        isOwner: true, synced: {}, createdAt: Date.now()
       };
-
-      APP_STATE.lists.push(newList);
+      APP_STATE.lists.push(list);
       saveLists();
-      switchList(newList.id);
-      newListNameInput.value = '';
-      closeModal(createListModal);
+      switchList(list.id);
+      $('newListName').value = '';
+      closeModal($('createListModal'));
     });
 
-    // Formulario Añadir Producto
-    addItemForm.addEventListener('submit', (e) => {
+    $('addItemForm').addEventListener('submit', e => {
       e.preventDefault();
-      const name = itemInput.value;
-      const cat = categorySelect.value;
-      const qty = qtyInput.value;
-      addItem(name, cat, qty);
-      itemInput.value = '';
-      qtyInput.value = '';
-      itemInput.focus();
+      const cat = $('categorySelect').value === '__new__' ? 'otros' : $('categorySelect').value;
+      addItem($('itemInput').value, cat, $('qtyInput').value);
+      $('itemInput').value = '';
+      $('qtyInput').value = '';
+      APP_STATE.catTouched = false;
+      $('categorySelect').value = 'otros';
+      renderStockSuggest();
+      $('itemInput').focus();
+    });
+    // Sugerencias del stock mientras se escribe en la lista
+    function renderStockSuggest() {
+      const box = $('stockSuggest');
+      const q = norm($('itemInput').value);
+      const list = getCurrentList();
+      if (q.length < 2) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+      const pendingNames = new Set(readLocalItems(list.id).filter(i => !i.completed).map(i => norm(i.name)));
+      const matches = readLocal('stock', list.id)
+        .filter(p => norm(p.name).includes(q))
+        .sort((a, b) => (norm(b.name).startsWith(q) - norm(a.name).startsWith(q)) || a.name.localeCompare(b.name, 'es'))
+        .slice(0, 5);
+      if (!matches.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+      box.innerHTML = '<p class="text-[10px] font-bold text-slate-400 uppercase">De tu stock</p>' + matches.map(p => {
+        const cat = catOf(list, p.category);
+        const plan = buyPlan(p);
+        const inList = pendingNames.has(norm(p.name));
+        const add = hasPack(p) ? plan.packs + ' ' + packNameOf(p, plan.packs) : (p.unit ? unitsText(p, plan.units) : 'x' + plan.units);
+        return `<button type="button" data-suggest="${escapeHtml(p.id)}" ${inList ? 'disabled' : ''}
+            class="suggest-btn w-full text-left flex items-center gap-2 px-3 py-2 rounded-xl border ${inList ? 'bg-slate-50 border-slate-200 opacity-60' : 'bg-sky-50 border-sky-200 active:scale-[0.98]'}">
+            <span>${escapeHtml(cat.icon)}</span>
+            <span class="suggest-name flex-1 min-w-0 truncate text-sm font-semibold text-slate-800">${escapeHtml(p.name)}</span>
+            <span class="text-[10px] text-slate-500 flex-shrink-0">hay ${escapeHtml(unitsText(p, p.qty || 0))}${inList ? ' · ya en la lista' : ' · <strong class="text-sky-700">+ ' + escapeHtml(add) + '</strong>'}</span>
+          </button>`;
+      }).join('');
+      box.classList.remove('hidden');
+    }
+    $('stockSuggest').addEventListener('click', e => {
+      const b = e.target.closest('[data-suggest]');
+      if (!b || b.disabled) return;
+      const p = readLocal('stock', getCurrentList().id).find(x => x.id === b.dataset.suggest);
+      if (!p) return;
+      const plan = buyPlan(p);
+      addItem(p.name, p.category, plan.text, { stockAdd: plan.units, stockPacks: plan.packs, stockPackSize: plan.size });
+      $('itemInput').value = '';
+      $('qtyInput').value = '';
+      APP_STATE.catTouched = false;
+      $('categorySelect').value = 'otros';
+      renderStockSuggest();
+      toast(p.name + ' añadido: ' + plan.text);
+      $('itemInput').focus();
     });
 
-    // Ajustes Modal
-    settingsBtn.addEventListener('click', () => {
-      userNameInput.value = APP_STATE.userName;
-      openModal(settingsModal);
-    });
-    closeSettingsBtn.addEventListener('click', () => closeModal(settingsModal));
-
-    saveUserNameBtn.addEventListener('click', () => {
-      const name = userNameInput.value.trim();
-      if (name) {
-        APP_STATE.userName = name;
-        localStorage.setItem('nc_userName', name);
-        closeModal(settingsModal);
-        renderApp();
-      }
+    // Elegir el grupo automáticamente mientras se escribe
+    $('itemInput').addEventListener('input', renderStockSuggest);
+    $('itemInput').addEventListener('input', () => {
+      if (APP_STATE.catTouched) return;
+      const txt = $('itemInput').value.trim();
+      const g = txt ? (guessCategory(txt, getCurrentList()) || 'otros') : 'otros';
+      $('categorySelect').value = g;
+      $('categorySelect').dataset.prev = g;
     });
 
-    copyCodeBtn.addEventListener('click', () => {
-      const currentList = getCurrentList();
-      navigator.clipboard.writeText(currentList.code).then(() => {
-        copyCodeBtn.textContent = '¡Copiado!';
-        setTimeout(() => copyCodeBtn.textContent = 'Copiar', 2000);
+    // Ajustes
+    function openSettings() {
+      $('userNameInput').value = APP_STATE.userName;
+      const { cfg, source } = getFirebaseConfig();
+      $('fbConfigInput').value = source === 'app' && cfg ? JSON.stringify(cfg, null, 1) : '';
+      renderGroupsManager();
+      updateSyncUI();
+      openModal($('settingsModal'));
+    }
+    (function () {
+      const el = $('appVersionLabel');
+      const v = el.dataset.version;
+      el.textContent = 'Nuestra Compra · versión ' + (v.indexOf('APP_VERSION') === -1 ? v : 'de prueba');
+    })();
+    $('settingsBtn').addEventListener('click', openSettings);
+    $('closeSettingsBtn').addEventListener('click', () => closeModal($('settingsModal')));
+
+    function setUserName(name) {
+      APP_STATE.userName = name;
+      try { localStorage.setItem('nc_userName', name); } catch (e) {}
+      touchMembership(getCurrentList());
+    }
+    $('saveUserNameBtn').addEventListener('click', () => {
+      const name = $('userNameInput').value.trim();
+      if (!name) return;
+      setUserName(name);
+      renderAll();
+      toast('Nombre guardado');
+    });
+
+    $('saveFbConfigBtn').addEventListener('click', () => {
+      const cfg = parseFirebaseConfig($('fbConfigInput').value);
+      if (!cfg) { toast('No reconozco esas claves. Pega el bloque firebaseConfig completo.', 3500); return; }
+      lsSet('nc_fbConfig', cfg);
+      toast('Claves guardadas. Reiniciando…');
+      setTimeout(() => location.reload(), 800);
+    });
+    $('clearFbConfigBtn').addEventListener('click', () => {
+      try { localStorage.removeItem('nc_fbConfig'); } catch (e) {}
+      toast('Claves borradas. Reiniciando…');
+      setTimeout(() => location.reload(), 800);
+    });
+
+    $('copyCodeBtn').addEventListener('click', () => {
+      copyText(getCurrentList().code).then(ok => {
+        $('copyCodeBtn').textContent = ok ? '¡Copiado!' : 'Error';
+        setTimeout(() => $('copyCodeBtn').textContent = 'Copiar', 2000);
       });
     });
 
-    deleteListBtn.addEventListener('click', () => {
-      if (APP_STATE.lists.length <= 1) {
-        alert('No puedes eliminar la única lista.');
-        return;
+    $('deleteListBtn').addEventListener('click', () => {
+      if (APP_STATE.lists.length <= 1) { toast('No puedes eliminar la única lista.'); return; }
+      const list = getCurrentList();
+      const msg = list.type === 'shared'
+        ? '¿Quitar "' + list.name + '" de este móvil? El otro móvil la seguirá teniendo.'
+        : '¿Seguro que quieres eliminar "' + list.name + '", sus productos y su stock?';
+      if (!confirm(msg)) return;
+      stopListeners();
+      try { localStorage.removeItem('nc_items_' + list.id); localStorage.removeItem('nc_stock_' + list.id); } catch (e) {}
+      APP_STATE.lists = APP_STATE.lists.filter(l => l.id !== list.id);
+      saveLists();
+      closeModal($('settingsModal'));
+      switchList(APP_STATE.lists[0].id);
+    });
+
+    // =====================================================================
+    //  COPIA DE SEGURIDAD E IMPORTACIÓN
+    // =====================================================================
+    const BACKUP_PREFIX = 'NUESTRA-COMPRA-COPIA:';
+
+    function buildBackup() {
+      const data = {
+        app: 'nuestra-compra', v: 2, date: Date.now(), userName: APP_STATE.userName,
+        lists: APP_STATE.lists.map(l => ({
+          name: l.name, icon: l.icon, type: l.type, code: l.code, isOwner: !!l.isOwner,
+          categories: l.categories || null,
+          items: readLocal('items', l.id),
+          stock: readLocal('stock', l.id)
+        }))
+      };
+      return BACKUP_PREFIX + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+    }
+
+    function backupMessage() {
+      const total = APP_STATE.lists.reduce((n, l) => n + readLocal('items', l.id).length, 0);
+      const stockN = APP_STATE.lists.reduce((n, l) => n + readLocal('stock', l.id).length, 0);
+      return '💾 Copia de seguridad de Nuestra Compra (' + new Date().toLocaleDateString('es-ES') + ', ' +
+        APP_STATE.lists.length + ' listas, ' + total + ' productos, ' + stockN + ' en stock).\n' +
+        'Para recuperarla: Ajustes › Restaurar copia, y pega este mensaje entero.\n\n' + buildBackup();
+    }
+
+    // Añade datos a una lista sin duplicar; si es compartida, los sube a la nube
+    function mergeInto(list, kind, newRows) {
+      const rows = readLocal(kind, list.id);
+      const ids = new Set(rows.map(i => i.id));
+      const names = new Set(rows.filter(i => kind === 'stock' || !i.completed).map(i => norm(i.name)));
+      const added = [];
+      (newRows || []).forEach(it => {
+        if (!it || !it.name) return;
+        if (it.id && ids.has(it.id)) return;
+        if ((kind === 'stock' || !it.completed) && names.has(norm(it.name))) return;
+        const row = kind === 'stock'
+          ? Object.assign({ category: 'otros', qty: 0, min: 0, max: 1 }, it)
+          : Object.assign({ category: 'otros', qty: '', completed: false, addedBy: APP_STATE.userName, addedAt: Date.now() }, it);
+        if (!row.id) row.id = randomId(kind === 'stock' ? 'stk_' : 'item_');
+        rows.push(row);
+        ids.add(row.id);
+        if (kind === 'stock' || !row.completed) names.add(norm(row.name));
+        added.push(row);
+      });
+      writeLocal(kind, list.id, rows);
+      if (added.length && cloudOn(list) && isSynced(list, kind)) {
+        const batch = Cloud.db.batch();
+        added.forEach(it => batch.set(cref(list, kind).doc(it.id), forCloud(it)));
+        batch.commit().catch(onWriteErr);
       }
-      if (confirm('¿Seguro que quieres eliminar esta lista y todos sus productos?')) {
-        const idToDelete = APP_STATE.currentListId;
-        localStorage.removeItem(getItemsStorageKey(idToDelete));
-        APP_STATE.lists = APP_STATE.lists.filter(l => l.id !== idToDelete);
-        APP_STATE.currentListId = APP_STATE.lists[0].id;
+      return added.length;
+    }
+
+    function importText(text) {
+      text = (text || '').trim();
+      if (!text) return 'Pega primero la copia o la lista.';
+
+      const idx = text.indexOf(BACKUP_PREFIX);
+      if (idx !== -1) {
+        let data;
+        try {
+          const b64 = text.slice(idx + BACKUP_PREFIX.length).replace(/\s+/g, '');
+          data = JSON.parse(decodeURIComponent(escape(atob(b64))));
+        } catch (e) { return 'La copia está incompleta o dañada. Copia el mensaje entero.'; }
+        if (!data || !Array.isArray(data.lists)) return 'Esto no parece una copia de Nuestra Compra.';
+        let newLists = 0, newItems = 0, newStock = 0, firstRestored = null;
+        const restoredNames = new Set(data.lists.map(bl => bl.name));
+        APP_STATE.lists = APP_STATE.lists.filter(l => !(
+          l.id === 'lista-hogar-default' && restoredNames.has(l.name) &&
+          readLocal('items', l.id).length === 0 && readLocal('stock', l.id).length === 0 &&
+          !data.lists.some(bl => bl.code === l.code)
+        ));
+        data.lists.forEach(bl => {
+          let list = APP_STATE.lists.find(l => l.code === bl.code);
+          if (!list) {
+            list = {
+              id: randomId('list_'), name: bl.name || 'Lista recuperada', icon: bl.icon || '🛒',
+              type: bl.type === 'personal' ? 'personal' : 'shared', code: bl.code || newShareCode(),
+              isOwner: !!bl.isOwner, synced: {}, createdAt: Date.now()
+            };
+            if (Array.isArray(bl.categories)) list.categories = bl.categories;
+            APP_STATE.lists.push(list);
+            newLists++;
+          }
+          if (!firstRestored) firstRestored = list;
+          newItems += mergeInto(list, 'items', bl.items || []);
+          newStock += mergeInto(list, 'stock', bl.stock || []);
+        });
         saveLists();
-        localStorage.setItem('nc_currentListId', APP_STATE.currentListId);
-        closeModal(settingsModal);
-        renderApp();
+        if (storedUserName() === '' && data.userName) setUserName(data.userName);
+        const stillThere = APP_STATE.lists.some(l => l.id === APP_STATE.currentListId);
+        switchList(stillThere ? APP_STATE.currentListId : firstRestored.id);
+        return 'Copia restaurada: ' + newLists + ' listas nuevas, ' + newItems + ' productos y ' + newStock + ' de stock recuperados.';
+      }
+
+      // Lista enviada por WhatsApp (líneas "• Producto (cantidad)")
+      const lines = text.split(/\r?\n/).map(s => s.trim()).filter(s => /^(?:[•·]|-\s)/.test(s));
+      if (!lines.length) return 'No encuentro productos. Pega una copia de seguridad o una lista con líneas que empiecen por •';
+      const list = getCurrentList();
+      const parsed = lines.map(s => {
+        s = s.replace(/^(?:[•·]|-)\s*/, '').trim();
+        let qty = '';
+        const m = s.match(/^(.*?)\s*\(([^()]{1,20})\)\s*$/);
+        if (m) { s = m[1].trim(); qty = m[2].trim(); }
+        return { id: randomId('item_'), name: s.slice(0, 80), qty, category: guessCategory(s, list) || 'otros', completed: false, addedBy: APP_STATE.userName, addedAt: Date.now() };
+      }).filter(i => i.name);
+      const n = mergeInto(list, 'items', parsed);
+      renderAll();
+      return n ? 'Añadidos ' + n + ' productos a "' + list.name + '".' : 'Esos productos ya estaban en la lista.';
+    }
+
+    $('backupWhatsappBtn').addEventListener('click', () => openWhatsapp(backupMessage()));
+    $('backupCopyBtn').addEventListener('click', () => {
+      copyText(backupMessage()).then(ok => toast(ok ? 'Copia de seguridad copiada. Guárdala en un mensaje o nota.' : 'No se pudo copiar', 3500));
+    });
+    $('importBtn').addEventListener('click', () => {
+      const msg = importText($('importInput').value);
+      toast(msg, 4000);
+      if (/^(Copia restaurada|Añadidos)/.test(msg)) {
+        $('importInput').value = '';
+        closeModal($('settingsModal'));
       }
     });
 
-    // Compartir por WhatsApp la lista o código
+    // Enviar la lista por WhatsApp, agrupada por secciones
     function shareCurrentList() {
-      const current = getCurrentList();
-      const items = getItems().filter(i => !i.completed);
-      let text = `🛒 *${current.name}*\n`;
-      if (current.type === 'shared') {
-        text += `Código para sincronizarte en la app: *${current.code}*\n\n`;
-      }
+      const list = getCurrentList();
+      const items = readLocalItems(list.id).filter(i => !i.completed);
+      let text = '🛒 *' + list.name + '*\n';
       if (items.length === 0) {
-        text += `¡No hay nada pendiente por comprar! 🎉`;
+        text += '¡No hay nada pendiente por comprar! 🎉\n';
       } else {
-        text += `*Artículos pendientes:*\n`;
-        items.forEach(i => {
-          text += `• ${i.name} ${i.qty ? `(${i.qty})` : ''}\n`;
+        getCategories(list).forEach(cat => {
+          const group = items.filter(i => catIdOf(list, i.category) === cat.id);
+          if (!group.length) return;
+          text += '\n' + cat.icon + ' *' + cat.name + '*\n';
+          group.forEach(i => { text += '• ' + i.name + (i.qty ? ' (' + i.qty + ')' : '') + '\n'; });
         });
       }
-      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+      if (list.type === 'shared') text += '\n_Código de la lista en la app: ' + list.code + '_';
+      openWhatsapp(text);
     }
+    $('shareListBtn').addEventListener('click', shareCurrentList);
+    $('sendWhatsappBtn').addEventListener('click', shareCurrentList);
 
-    shareListBtn.addEventListener('click', shareCurrentList);
-    sendWhatsappBtn.addEventListener('click', shareCurrentList);
-
-    // Vaciar carrito
-    clearCompletedBtn.addEventListener('click', () => {
-      if (confirm('¿Deseas quitar todos los productos que ya están en el carrito?')) {
-        let items = getItems();
-        items = items.filter(i => !i.completed);
-        saveItems(items);
-      }
+    $('clearCompletedBtn').addEventListener('click', () => {
+      if (confirm('¿Quitar todos los productos que ya están en el carrito?')) clearCompleted();
     });
 
-    // Sincronización en vivo local (entre navegadores/pestañas)
-    syncChannel.onmessage = (event) => {
-      if (event.data && event.data.type === 'UPDATE_ITEMS') {
-        if (event.data.listId === APP_STATE.currentListId) {
-          localStorage.setItem(getItemsStorageKey(APP_STATE.currentListId), JSON.stringify(event.data.items));
-          renderApp();
-          // Destello en indicador de sincronización
-          const pulse = document.getElementById('syncPulse');
-          pulse.classList.add('scale-150');
-          setTimeout(() => pulse.classList.remove('scale-150'), 400);
-        }
-      }
-    };
+    $('welcomeForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const name = $('welcomeNameInput').value.trim();
+      if (!name) return;
+      setUserName(name);
+      closeModal($('welcomeModal'));
+      renderAll();
+    });
 
-    // Parámetro URL para unirse directo con enlace (ej: ?code=CASA-1234)
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('online', () => { Cloud.online = true; updateSyncUI(); });
+    window.addEventListener('offline', () => { Cloud.online = false; updateSyncUI(); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') { touchMembership(getCurrentList()); renderAll(); }
+    });
+    window.addEventListener('storage', e => {
+      if (e.key === 'nc_items_' + APP_STATE.currentListId || e.key === 'nc_stock_' + APP_STATE.currentListId) renderAll();
+    });
+
+    // =====================================================================
+    //  ARRANQUE
+    // =====================================================================
+    function start() {
       renderQuickItems();
+      setTab(APP_STATE.tab);
       const params = new URLSearchParams(window.location.search);
       const inviteCode = params.get('code');
+      renderAll();
+      initCloud();
+      if (!storedUserName()) setTimeout(() => openModal($('welcomeModal')), 300);
       if (inviteCode) {
-        const clean = inviteCode.trim().toUpperCase();
-        let list = APP_STATE.lists.find(l => l.code === clean);
-        if (!list) {
-          list = {
-            id: 'list_joined_' + Date.now(),
-            name: 'Lista Compartida (' + clean + ')',
-            icon: '🛒',
-            type: 'shared',
-            code: clean,
-            createdAt: Date.now()
-          };
-          APP_STATE.lists.push(list);
-          saveLists();
-        }
-        switchList(list.id);
-      } else {
-        renderApp();
+        const tryJoin = (attempt) => {
+          if (Cloud.ready || Cloud.status === 'off' || Cloud.status === 'error' || attempt > 20) {
+            joinList(inviteCode).then(r => toast(r.msg, 3500));
+          } else {
+            setTimeout(() => tryJoin(attempt + 1), 500);
+          }
+        };
+        tryJoin(0);
       }
-    });
-
-    function escapeHtml(text) {
-      if (!text) return '';
-      return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+    else start();
 
-    // Registro de Service Worker para PWA
-    if ('serviceWorker' in navigator) {
+    if (!isNative && 'serviceWorker' in navigator && location.protocol.startsWith('http')) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW reg fail:', err));
       });
