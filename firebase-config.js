@@ -1,13 +1,11 @@
 // =====================================================================
-//  CLAVES DE FIREBASE
-//  Sustituye estos valores por los de tu proyecto (README, paso 6).
-//  Es lo único que tienes que tocar para que los dos móviles se conecten.
+//  CLAVES DE FIREBASE (proyecto nuestra-compra-61c45)
 // =====================================================================
 window.FIREBASE_CONFIG = {
-  apiKey: "PEGA_AQUI_TU_API_KEY",
-  authDomain: "PEGA_AQUI.firebaseapp.com",
-  projectId: "PEGA_AQUI",
-  storageBucket: "PEGA_AQUI.appspot.com",
-  messagingSenderId: "PEGA_AQUI",
-  appId: "PEGA_AQUI"
+  apiKey: "AIzaSyD143Ua9OsEarDz2diU2arODN30gd02GHU",
+  authDomain: "nuestra-compra-61c45.firebaseapp.com",
+  projectId: "nuestra-compra-61c45",
+  storageBucket: "nuestra-compra-61c45.firebasestorage.app",
+  messagingSenderId: "410610064590",
+  appId: "1:410610064590:web:9d072ff7cb9e2ffe6b849f"
 };
